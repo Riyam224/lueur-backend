@@ -883,6 +883,7 @@ footer {
           </div>
 <pre><span class="cm">// Request body</span>
 <span class="pu">{</span>
+  <span class="ky">"user_id"</span><span class="pu">:</span> <span class="str">"user_123"</span><span class="pu">,</span>
   <span class="ky">"emoji"</span><span class="pu">:</span>    <span class="str">"😔"</span><span class="pu">,</span>
   <span class="ky">"thoughts"</span><span class="pu">:</span> <span class="str">"I feel very overwhelmed
              with everything lately"</span>
@@ -891,6 +892,7 @@ footer {
 <span class="cm">// Response</span>
 <span class="pu">{</span>
   <span class="ky">"id"</span><span class="pu">:</span>          <span class="num">42</span><span class="pu">,</span>
+  <span class="ky">"user_id"</span><span class="pu">:</span>     <span class="str">"user_123"</span><span class="pu">,</span>
   <span class="ky">"emoji"</span><span class="pu">:</span>       <span class="str">"😔"</span><span class="pu">,</span>
   <span class="ky">"thoughts"</span><span class="pu">:</span>    <span class="str">"I feel very overwhelmed..."</span><span class="pu">,</span>
   <span class="ky">"ai_response"</span><span class="pu">:</span> <span class="str">"It sounds like you're
@@ -913,7 +915,7 @@ footer {
     <div class="rv">
       <span class="sec-tag">// endpoints</span>
       <h2>Three clean endpoints.<br>Infinite emotional support.</h2>
-      <p class="sec-desc">Simple REST API — no authentication required. Send an emoji and your thoughts, get back a caring AI response.</p>
+      <p class="sec-desc">Simple REST API — no authentication required. Every request includes a <strong>user_id</strong> so entries stay grouped by user.</p>
     </div>
 
     <div class="ep-grid rv">
@@ -923,7 +925,7 @@ footer {
           <div class="ep-path">/api/therapist/generate/</div>
           <div class="ep-desc">Send an emoji + thoughts and receive a warm, empathetic AI response from Luna. The entry is automatically saved to the mood journal history.</div>
           <div class="ep-pills">
-            <span class="pill">Body: emoji, thoughts</span>
+            <span class="pill">Body: user_id, emoji, thoughts</span>
             <span class="pill pill-g">Returns: MoodEntry object</span>
             <span class="pill">Content-Type: application/json</span>
           </div>
@@ -935,9 +937,9 @@ footer {
         <div class="mth m-get">GET</div>
         <div>
           <div class="ep-path">/api/therapist/history/</div>
-          <div class="ep-desc">Retrieve all saved mood journal entries ordered by most recent first. Each entry includes the emoji, thoughts, Luna's full AI response, and timestamp.</div>
+          <div class="ep-desc">Retrieve mood journal entries for a specific user, ordered by most recent first. Each entry includes emoji, thoughts, Luna's full AI response, and timestamp.</div>
           <div class="ep-pills">
-            <span class="pill">No params required</span>
+            <span class="pill">Query: user_id (required)</span>
             <span class="pill pill-p">Returns: MoodEntry array</span>
             <span class="pill">Ordered: newest first</span>
           </div>
@@ -946,12 +948,12 @@ footer {
       </div>
 
       <div class="ep">
-        <div class="mth m-post">POST</div>
+        <div class="mth m-get">GET</div>
         <div>
           <div class="ep-path">/api/therapist/weekly-letter/</div>
-          <div class="ep-desc">Generate a personalised weekly letter from Luna based on the last 7 days of mood entries. Requires at least 2 entries in the past week. Returns a warm 3–4 paragraph letter, dominant mood emoji, and streak stats.</div>
+          <div class="ep-desc">Generate a personalised weekly letter from Luna based on the last 7 days of a user's entries. Requires at least 2 entries in the past week. Returns a warm 3–4 paragraph letter, dominant mood emoji, and streak stats.</div>
           <div class="ep-pills">
-            <span class="pill">No body required</span>
+            <span class="pill">Query: user_id (required)</span>
             <span class="pill pill-g">Returns: letter + stats</span>
             <span class="pill">Min: 2 entries / week</span>
           </div>
@@ -972,6 +974,7 @@ footer {
       </div>
       <div class="model-fields">
         <div class="mf"><span class="mf-name">id</span><span class="mf-type">integer</span><span class="mf-desc">Unique identifier, auto-incremented</span></div>
+        <div class="mf"><span class="mf-name">user_id</span><span class="mf-type">string</span><span class="mf-desc">User identifier (3–128 chars, letters/numbers/_/-)</span></div>
         <div class="mf"><span class="mf-name">emoji</span><span class="mf-type">string</span><span class="mf-desc">Mood emoji selected by user (e.g. 😔 😊 😰)</span></div>
         <div class="mf"><span class="mf-name">thoughts</span><span class="mf-type">string</span><span class="mf-desc">User's written thoughts and feelings</span></div>
         <div class="mf"><span class="mf-name">ai_response</span><span class="mf-type">string</span><span class="mf-desc">Luna's empathetic AI-generated response</span></div>
@@ -1000,7 +1003,7 @@ footer {
       <div class="fs">
         <div class="fi">🌐</div>
         <div class="ft">POST request</div>
-        <div class="fd">Send to /generate/ endpoint</div>
+        <div class="fd">Send user_id, emoji, thoughts</div>
       </div>
       <div class="fa"></div>
       <div class="fs">
@@ -1081,6 +1084,7 @@ footer {
     .up.railway.app
     /api/therapist/generate/'</span>,
   data: <span class="pu">{</span>
+    <span class="str">'user_id'</span><span class="pu">:</span> 'user_123',
     <span class="str">'emoji'</span><span class="pu">:</span>    emojiPath,
     <span class="str">'thoughts'</span><span class="pu">:</span> controller.text,
   <span class="pu">}</span>,
@@ -1098,7 +1102,7 @@ footer {
 <pre><span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/therapist/history/'</span>,
+    /api/therapist/history/?user_id=user_123'</span>,
 );
 
 <span class="kw">final</span> List entries =
@@ -1122,6 +1126,7 @@ BASE = <span class="str">"https://web-production-f8628
 res = requests.<span class="fn">post</span>(
   f<span class="str">"{BASE}/api/therapist/generate/"</span>,
   json=<span class="pu">{</span>
+    <span class="str">"user_id"</span><span class="pu">:</span> <span class="str">"user_123"</span>,
     <span class="str">"emoji"</span><span class="pu">:</span>    <span class="str">"😔"</span>,
     <span class="str">"thoughts"</span><span class="pu">:</span> <span class="str">"I feel overwhelmed"</span>,
   <span class="pu">}</span>
@@ -1141,13 +1146,13 @@ entry = res.<span class="fn">json</span>()
   .up.railway.app
   /api/therapist/generate/</span> \
   <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span>\
-  <span class="kw">-d</span> <span class="str">'{"emoji":"😔",
+  <span class="kw">-d</span> <span class="str">'{"user_id":"user_123","emoji":"😔",
       "thoughts":"I feel tired"}'</span>
 
 <span class="cm"># Get full history</span>
 <span class="fn">curl</span> <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/therapist/history/</span></pre>
+  /api/therapist/history/?user_id=user_123</span></pre>
       </div>
 
       <div class="cc">
@@ -1155,10 +1160,10 @@ entry = res.<span class="fn">json</span>()
           <div class="cc-dots"><div class="cd"></div><div class="cd"></div><div class="cd"></div></div>
           <div class="cc-lbl">Flutter / Dart — weekly letter</div>
         </div>
-<pre><span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">post</span>(
+<pre><span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/therapist/weekly-letter/'</span>,
+    /api/therapist/weekly-letter/?user_id=user_123'</span>,
 );
 
 <span class="cm">// Response</span>
