@@ -5,9 +5,10 @@ from drf_spectacular.utils import (
     extend_schema,
     OpenApiExample,
     OpenApiResponse,
+    OpenApiParameter,
 )
 from .ai_model import generate_ai_response
-from .serializers import MoodEntrySerializer
+from .serializers import MoodEntrySerializer, MoodEntryCreateSerializer
 from datetime import datetime, timedelta
 from django.conf import settings
 
@@ -33,23 +34,28 @@ The entry is automatically saved to your journal history.
             "application/json": {
                 "type": "object",
                 "properties": {
+                    "user_id": {
+                        "type": "string",
+                        "example": "user_123",
+                    },
                     "emoji": {"type": "string", "example": "😔"},
                     "thoughts": {
                         "type": "string",
                         "example": "I feel overwhelmed lately",
                     },
                 },
-                "required": ["emoji", "thoughts"],
+                "required": ["user_id", "emoji", "thoughts"],
             }
         },
         responses={
             200: MoodEntrySerializer,
-            400: OpenApiResponse(description="Missing emoji or thoughts"),
+            400: OpenApiResponse(description="Missing user_id, emoji or thoughts"),
         },
         examples=[
             OpenApiExample(
                 "Overwhelmed example",
                 value={
+                    "user_id": "user_123",
                     "emoji": "😔",
                     "thoughts": "I feel very overwhelmed with everything lately",
                 },
@@ -58,6 +64,7 @@ The entry is automatically saved to your journal history.
             OpenApiExample(
                 "Happy example",
                 value={
+                    "user_id": "user_123",
                     "emoji": "😊",
                     "thoughts": "I feel happy and grateful today!",
                 },
@@ -66,6 +73,7 @@ The entry is automatically saved to your journal history.
             OpenApiExample(
                 "Anxious example",
                 value={
+                    "user_id": "user_123",
                     "emoji": "😰",
                     "thoughts": "I am anxious about my future career",
                 },
@@ -74,14 +82,13 @@ The entry is automatically saved to your journal history.
         ],
     )
     def post(self, request):
-        emoji = request.data.get("emoji")
-        thoughts = request.data.get("thoughts")
+        input_serializer = MoodEntryCreateSerializer(data=request.data)
+        if not input_serializer.is_valid():
+            return Response(input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        if not emoji or not thoughts:
-            return Response(
-                {"error": "emoji and thoughts are required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        user_id = input_serializer.validated_data["user_id"]
+        emoji = input_serializer.validated_data["emoji"]
+        thoughts = input_serializer.validated_data["thoughts"]
 
         try:
             ai_reply = generate_ai_response(emoji, thoughts)
@@ -90,6 +97,7 @@ The entry is automatically saved to your journal history.
             ai_reply = "Could not generate a response at this time. Please try again later."
 
         entry = MoodEntry.objects.create(
+            user_id=user_id,
             emoji=emoji,
             thoughts=thoughts,
             ai_response=ai_reply,
@@ -104,21 +112,35 @@ class AllHistoryAPIView(APIView):
         tags=["Therapist"],
         summary="Get mood history",
         description="""
-Returns all saved mood journal entries, ordered by most recent first.
+Returns all saved mood journal entries for the given user, ordered by most recent first.
 
 Each entry contains:
+- **user_id** — the user ID the entry belongs to
 - **emoji** — the mood emoji selected by the user
 - **thoughts** — what the user shared
 - **ai_response** — Luna's empathetic response
 - **created_at** — timestamp of the entry
         """,
-        responses={200: MoodEntrySerializer(many=True)},
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="User ID to filter mood history entries.",
+            ),
+        ],
+        responses={
+            200: MoodEntrySerializer(many=True),
+            400: OpenApiResponse(description="Missing user_id"),
+        },
         examples=[
             OpenApiExample(
                 "History response",
                 value=[
                     {
                         "id": 1,
+                        "user_id": "user_123",
                         "emoji": "😔",
                         "thoughts": "I feel overwhelmed",
                         "ai_response": "It sounds like you are carrying a lot right now...",
@@ -126,6 +148,7 @@ Each entry contains:
                     },
                     {
                         "id": 2,
+                        "user_id": "user_123",
                         "emoji": "😊",
                         "thoughts": "Feeling grateful today",
                         "ai_response": "That is beautiful! Gratitude is a powerful...",
@@ -137,7 +160,13 @@ Each entry contains:
         ],
     )
     def get(self, request):
-        entries = MoodEntry.objects.all().order_by("-created_at")
+        user_id = request.query_params.get("user_id")
+        if not user_id:
+            return Response(
+                {"error": "user_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        entries = MoodEntry.objects.filter(user_id=user_id).order_by("-created_at")
         return Response(MoodEntrySerializer(entries, many=True).data)
 
 
@@ -343,13 +372,28 @@ class WeeklyLetterAPIView(APIView):
         tags=["Therapist"],
         summary="Get Luna's weekly letter",
         description="Generates a personal weekly letter from Luna based on recent entries.",
-        responses={200: OpenApiResponse(description="Weekly letter")},
+        parameters=[
+            OpenApiParameter(
+                name="user_id",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="User ID to filter weekly letter entries.",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Weekly letter"),
+            400: OpenApiResponse(description="Missing user_id"),
+        },
     )
     def get(self, request):
+        user_id = request.query_params.get("user_id")
+        if not user_id:
+            return Response({"error": "user_id is required"}, status=400)
         week_start = timezone.now() - timedelta(days=7)
         week_end = timezone.now()
 
-        entries = MoodEntry.objects.filter(created_at__gte=week_start).order_by("created_at")
+        entries = MoodEntry.objects.filter(user_id=user_id, created_at__gte=week_start).order_by("created_at")
         entries_count = entries.count()
 
         if entries_count < 2:
