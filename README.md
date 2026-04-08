@@ -1,278 +1,230 @@
-# AI Therapist Backend
+# MindEase — AI Therapist Backend
 
-A Django REST Framework-based backend service that provides AI-powered emotional support and therapeutic responses. The system uses **Groq's Llama 3.1 8B Instant model** via cloud API to generate empathetic and supportive messages based on user mood inputs.
+A Django REST Framework backend that provides AI-powered emotional support. Users share their mood with an emoji and thoughts, and **Luna** (the AI therapist) responds with an empathetic, personalised message. All entries are saved per user for history tracking and weekly reflections.
 
-## Overview
+Powered by **Groq API with Llama 3.1 8B Instant** — no local GPU or ML dependencies required.
 
-This application allows users to express their feelings through emojis and thoughts, and receives AI-generated supportive responses. All interactions are stored in a database for tracking emotional well-being over time.
+---
 
 ## Features
 
-- **AI-Powered Support**: Uses Groq API with Llama 3.1 8B Instant model for generating therapeutic responses
-- **Mood Tracking**: Stores user mood entries with emojis, thoughts, and AI responses
-- **RESTful API**: Built with Django REST Framework for easy integration
-- **Cloud-Based AI**: No local GPU/ML dependencies - uses Groq's fast cloud API
-- **Production-Ready**: Railway/Heroku deployment with WhiteNoise for static files
-- **Fast & Scalable**: Class-based views, efficient API calls, low memory footprint
+- **Luna AI responses** — warm, empathetic replies via Groq's fast cloud API
+- **Mood journal** — every entry (emoji + thoughts + AI reply) is saved per user
+- **Weekly letter** — Luna writes a personal weekly reflection based on recent entries
+- **Per-user data isolation** — each user only sees their own entries
+- **Interactive API docs** — Swagger UI at `/api/docs/`
+- **Production-ready** — Railway/Heroku deployment with Gunicorn + WhiteNoise
+
+---
 
 ## Technology Stack
 
-- **Framework**: Django 5.1.4 with Django REST Framework 3.17.1
-- **AI Model**: Groq API - Llama 3.1 8B Instant (cloud-based)
-- **Database**: SQLite (default, easily configurable for PostgreSQL/MySQL)
-- **HTTP Client**: Python `requests` library
-- **Deployment**: Gunicorn + WhiteNoise for production
-- **Platform**: Railway/Heroku ready with Procfile
+| Layer | Technology |
+| --- | --- |
+| Framework | Django 5.1.4 + Django REST Framework 3.17.1 |
+| AI Model | Groq API — `llama-3.1-8b-instant` (cloud) |
+| API Docs | drf-spectacular (Swagger UI + ReDoc) |
+| Database | SQLite (dev) / PostgreSQL (prod recommended) |
+| HTTP Client | Python `requests` |
+| Static Files | WhiteNoise |
+| Deployment | Gunicorn + Railway/Heroku |
 
-## Installation
+---
+
+## Quick Start
 
 ### Prerequisites
 
 - Python 3.8+
-- pip
-- Virtual environment (recommended)
-- **Groq API Key** (get free key at [console.groq.com](https://console.groq.com))
+- A Groq API key — get one free at [console.groq.com](https://console.groq.com)
 
-### Setup Steps
+### Setup
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd ai_therapist_backend
-   ```
+```bash
+# 1. Clone and enter the project
+git clone <repository-url>
+cd ai_therapist_backend
 
-2. **Create and activate virtual environment**
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
+# 2. Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+# 3. Install dependencies
+pip install -r requirements.txt
 
-4. **Set environment variables**
-   ```bash
-   export GROQ_API_KEY="your-groq-api-key-here"
-   # Optional:
-   export SECRET_KEY="your-secret-key"
-   export DEBUG="True"  # Only for development
-   ```
+# 4. Set environment variables
+export GROQ_API_KEY="your-groq-api-key"
+export SECRET_KEY="your-secret-key"   # optional in dev
+export DEBUG="True"                   # optional in dev
 
-5. **Run database migrations**
-   ```bash
-   python manage.py migrate
-   ```
+# 5. Run migrations
+python manage.py migrate
 
-6. **Create a superuser (optional, for admin access)**
-   ```bash
-   python manage.py createsuperuser
-   ```
-
-7. **Start the development server**
-   ```bash
-   python manage.py runserver
-   ```
-
-The server will start at `http://127.0.0.1:8000/`
-
-## API Documentation
-
-### Base URL
-```
-http://127.0.0.1:8000/api/therapist/
+# 6. Start the server
+python manage.py runserver
 ```
 
-### Endpoints
+Server runs at `http://127.0.0.1:8000/`
 
-#### 1. Get All Mood Entries (History)
+---
 
-Retrieve all stored mood entries in reverse chronological order (newest first).
+## API Endpoints
 
-**Endpoint**: `GET /api/therapist/history/`
+Base URL: `/api/therapist/`
 
-**Response**:
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| POST | `/api/therapist/generate/` | Submit mood, get Luna's AI response |
+| GET | `/api/therapist/history/` | Get all saved entries for a user |
+| GET | `/api/therapist/weekly-letter/` | Get Luna's weekly reflection letter |
+
+Interactive docs available at:
+- **Swagger UI**: `/api/docs/`
+- **ReDoc**: `/api/redoc/`
+
+---
+
+### POST `/api/therapist/generate/`
+
+Submit a mood entry. Luna responds with an empathetic message that is saved to the journal.
+
+**Request body**:
+```json
+{
+  "user_id": "user_123",
+  "emoji": "😔",
+  "thoughts": "Feeling overwhelmed with everything lately"
+}
+```
+
+**`user_id` rules**: 3–128 characters, letters / numbers / `_` / `-` only.
+
+**Response (200)**:
+```json
+{
+  "id": 1,
+  "user_id": "user_123",
+  "emoji": "😔",
+  "thoughts": "Feeling overwhelmed with everything lately",
+  "ai_response": "It sounds like you're carrying a lot right now...",
+  "created_at": "2026-04-08T10:30:00Z"
+}
+```
+
+**Error (400)** — invalid or missing fields:
+```json
+{
+  "user_id": ["This field is required."]
+}
+```
+
+If the Groq API is unavailable, the entry is still saved with a fallback message:
+`"Could not generate a response at this time. Please try again later."`
+
+---
+
+### GET `/api/therapist/history/?user_id=user_123`
+
+Returns all mood entries for the given user, newest first.
+
+**Response (200)**:
 ```json
 [
   {
-    "id": 1,
-    "emoji": "😊",
-    "thoughts": "Had a great day at work!",
-    "ai_response": "That's wonderful to hear! It sounds like things are going well...",
-    "created_at": "2026-03-27T10:30:00Z"
-  },
-  {
     "id": 2,
-    "emoji": "😔",
-    "thoughts": "Feeling overwhelmed with deadlines",
-    "ai_response": "I understand that work pressure can feel heavy. It's completely normal...",
-    "created_at": "2026-03-26T14:45:00Z"
+    "user_id": "user_123",
+    "emoji": "😊",
+    "thoughts": "Had a great day!",
+    "ai_response": "That's wonderful to hear...",
+    "created_at": "2026-04-08T14:00:00Z"
   }
 ]
 ```
 
-#### 2. Create Mood Entry & Get AI Response
-
-Submit a mood entry and receive an AI-generated supportive message.
-
-**Endpoint**: `POST /api/therapist/generate/`
-
-**Request Body**:
+**Error (400)** — missing `user_id`:
 ```json
-{
-  "emoji": "😔",
-  "thoughts": "Feeling overwhelmed with work deadlines"
-}
+{ "error": "user_id is required" }
 ```
 
-**Response** (200 OK):
+---
+
+### GET `/api/therapist/weekly-letter/?user_id=user_123`
+
+Luna writes a personal letter summarising the user's emotional week (last 7 days).
+
+Requires at least **2 entries** in the past 7 days; returns `null` with a reason otherwise.
+
+**Response (200)**:
 ```json
 {
-  "id": 3,
-  "emoji": "😔",
-  "thoughts": "Feeling overwhelmed with work deadlines",
-  "ai_response": "I understand that work pressure can be challenging. Remember to take breaks and breathe. You're doing your best, and that's enough.",
-  "created_at": "2026-03-27T14:45:00Z"
-}
-```
-
-**Error Responses**:
-
-- `400 Bad Request`: Missing required fields
-  ```json
-  {
-    "error": "emoji and thoughts required"
+  "letter": "Dear friend,\n\nThis week you carried both weight and warmth...\n\n— Luna 🌿",
+  "stats": {
+    "entry_count": 5,
+    "dominant_emoji": "😔",
+    "streak": 5,
+    "week_start": "2026-04-01",
+    "week_end": "2026-04-08"
   }
-  ```
+}
+```
 
-- `500 Internal Server Error`: API call failed (network error, invalid API key, etc.)
+**Response when not enough entries**:
+```json
+{
+  "letter": null,
+  "reason": "not_enough_entries"
+}
+```
+
+---
 
 ## Project Structure
 
 ```
 ai_therapist_backend/
-├── core/                   # Django project configuration
-│   ├── settings.py         # Project settings (Railway-ready)
-│   ├── urls.py            # Main URL routing
-│   ├── wsgi.py            # WSGI configuration
-│   └── asgi.py            # ASGI configuration
-├── therapist/             # Main application
-│   ├── models.py          # MoodEntry database model
-│   ├── views.py           # Class-based API views (APIView)
-│   ├── serializers.py     # DRF serializers
-│   ├── ai_model.py        # Groq API integration
-│   ├── urls.py            # App-specific routing
-│   └── admin.py           # Django admin configuration
-├── manage.py              # Django management script
-├── requirements.txt       # Python dependencies
-├── Procfile              # Deployment configuration (Gunicorn)
-└── db.sqlite3            # SQLite database (created after migration)
+├── core/
+│   ├── settings.py        # Project settings (env-var driven)
+│   ├── urls.py            # Root URL routing
+│   ├── wsgi.py
+│   └── asgi.py
+├── therapist/
+│   ├── models.py          # MoodEntry model
+│   ├── views.py           # GenerateResponseAPIView, AllHistoryAPIView, WeeklyLetterAPIView
+│   ├── serializers.py     # MoodEntrySerializer, MoodEntryCreateSerializer
+│   ├── ai_model.py        # Groq API integration (generate_ai_response)
+│   ├── urls.py            # App URL patterns
+│   └── migrations/
+├── templates/
+│   └── index.html         # Home page
+├── manage.py
+├── requirements.txt
+├── Procfile               # Gunicorn config for Railway/Heroku
+└── db.sqlite3             # SQLite database (dev)
 ```
+
+---
 
 ## Environment Variables
 
-### Required
+| Variable | Required | Description |
+| --- | --- | --- |
+| `GROQ_API_KEY` | **Yes** | Groq API key from [console.groq.com](https://console.groq.com) |
+| `SECRET_KEY` | Recommended | Django secret key (has dev fallback) |
+| `DEBUG` | No | `"True"` for dev, `"False"` for prod (default: `False`) |
 
-- **`GROQ_API_KEY`**: Your Groq API key (get from [console.groq.com](https://console.groq.com))
-  ```bash
-  export GROQ_API_KEY="gsk_xxxxxxxxxxxxxxxxxxxxx"
-  ```
-
-### Optional (Recommended for Production)
-
-- **`SECRET_KEY`**: Django secret key (defaults to development key if not set)
-- **`DEBUG`**: Set to `"True"` for development, `"False"` for production (default: False)
-
-### Setting on Railway/Heroku
-
-In your platform dashboard, add environment variables:
-```
-GROQ_API_KEY = gsk_xxxxxxxxxxxxxxxxxxxxx
-SECRET_KEY = your-super-secret-random-key
-DEBUG = False
-```
-
-## Model Details
-
-### Groq API with Llama 3.1 8B Instant
-
-The application uses Groq's cloud API with the following configuration:
-
-- **Model**: `llama-3.1-8b-instant` (8 billion parameter Llama 3.1 model)
-- **Provider**: Groq (cloud-based inference)
-- **Speed**: ~1-2 seconds per response
-- **System Prompt**: Configured for warm, supportive, empathetic responses
-- **No Local Requirements**: No GPU, no ML libraries, minimal memory usage
-
-**Benefits over local models**:
-- ✅ No GPU/CUDA required
-- ✅ Fast cold starts (no model loading)
-- ✅ Better responses (8B model vs 125M)
-- ✅ Low memory footprint (~100MB vs ~500MB)
-- ✅ Easy deployment (no ML dependencies)
-
-## Development
-
-### Running Tests
-
-```bash
-python manage.py test therapist
-```
-
-**Note**: Mock the `generate_ai_response()` function in tests to avoid real API calls:
-
-```python
-from unittest.mock import patch
-
-@patch('therapist.ai_model.generate_ai_response')
-def test_create_mood_entry(self, mock_generate):
-    mock_generate.return_value = "Mocked AI response"
-    # ... your test code
-```
-
-### Accessing Django Admin
-
-1. Create a superuser (if not already done):
-   ```bash
-   python manage.py createsuperuser
-   ```
-
-2. Navigate to `http://127.0.0.1:8000/admin/`
-
-3. Log in with your credentials to view and manage mood entries
-
-### Making Database Changes
-
-After modifying models:
-```bash
-python manage.py makemigrations
-python manage.py migrate
-```
+---
 
 ## Deployment
 
-The project is production-ready for Railway, Heroku, Render, or similar platforms.
+### Railway
 
-### Railway Deployment
+1. Connect your GitHub repository on [railway.app](https://railway.app)
+2. Add environment variables in the Railway dashboard:
+   - `GROQ_API_KEY`, `SECRET_KEY`, `DEBUG=False`
+3. Railway auto-detects the `Procfile` and deploys
+4. Run migrations via Railway shell: `python manage.py migrate`
 
-1. **Create a new project on Railway**
-
-2. **Connect your GitHub repository**
-
-3. **Add environment variables**:
-   - `GROQ_API_KEY` = your Groq API key
-   - `SECRET_KEY` = random secret key
-   - `DEBUG` = False
-
-4. **Deploy**: Railway auto-detects the Procfile and deploys
-
-5. **Run migrations** (in Railway terminal):
-   ```bash
-   python manage.py migrate
-   ```
-
-### Heroku Deployment
+### Heroku
 
 ```bash
 heroku create your-app-name
@@ -283,173 +235,107 @@ git push heroku main
 heroku run python manage.py migrate
 ```
 
-### Production Checklist
+### Production checklist
 
-Before deploying:
-
-- [x] Static files configured (WhiteNoise ✓)
-- [x] Environment variables for sensitive settings ✓
-- [ ] **Set `GROQ_API_KEY`** (REQUIRED)
-- [ ] Set strong `SECRET_KEY`
-- [ ] Set `DEBUG=False`
+- [ ] `GROQ_API_KEY` set (**required**)
+- [ ] Strong `SECRET_KEY` set
+- [ ] `DEBUG=False`
 - [ ] Restrict `ALLOWED_HOSTS` to your domain
-- [ ] Use PostgreSQL instead of SQLite
-- [ ] Add CORS headers if frontend on different domain
-- [ ] Set up error logging (Sentry, etc.)
-- [ ] Configure rate limiting
+- [ ] Switch to PostgreSQL
+- [ ] Add CORS headers (`django-cors-headers`) if frontend is on a different domain
+- [ ] Configure rate limiting (DRF throttling)
+- [ ] Add error logging (Sentry)
 - [ ] Set up monitoring and health checks
 
-## Performance Notes
+---
 
-- **First request**: < 1 second (no model loading required)
-- **Subsequent requests**: 1-2 seconds (API call time)
-- **Memory usage**: ~50-100MB (no ML models in memory)
-- **Scalability**: Limited by Groq API rate limits (very generous free tier)
-- **No GPU needed**: All AI processing happens on Groq's servers
+## Testing
 
-## API Usage & Costs
+```bash
+python manage.py test therapist
+```
 
-- Groq offers a **generous free tier** for development
-- Production usage has very competitive pricing
-- Each mood entry creation = 1 API call
-- History retrieval = no API calls (database only)
+Mock the AI function to keep tests fast and offline:
 
-**Recommendations**:
-- Implement rate limiting to prevent abuse
-- Monitor API usage via Groq dashboard
-- Consider user quotas for high-scale deployments
+```python
+from unittest.mock import patch
+from rest_framework.test import APIClient
+from django.test import TestCase
 
-## Limitations
+class TherapistAPITests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
 
-- The AI provides supportive messages but is **NOT a replacement for professional therapy**
-- Requires internet connection for AI responses
-- Subject to Groq API rate limits and availability
-- No user authentication (anyone can create/view entries)
-- No data privacy controls (all entries visible to all users)
-- No conversation history/context between entries
+    @patch('therapist.ai_model.generate_ai_response')
+    def test_create_mood_entry(self, mock_generate):
+        mock_generate.return_value = "Mocked AI response"
+        response = self.client.post(
+            '/api/therapist/generate/',
+            {'user_id': 'user_test', 'emoji': '😊', 'thoughts': 'Great day!'},
+            format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('ai_response', response.data)
+```
 
-## Future Enhancements
-
-- [ ] User authentication and personalized tracking
-- [ ] User-specific mood history and analytics
-- [ ] Multi-language support
-- [ ] Conversation context (remember previous entries)
-- [ ] Sentiment analysis and mood trend visualization
-- [ ] Export mood journal as PDF/CSV
-- [ ] Integration with other AI providers (OpenAI, Anthropic)
-- [ ] Real-time streaming responses
-- [ ] Mobile app integration
-- [ ] Webhooks for mood alerts/reminders
+---
 
 ## Integration Examples
 
 ### cURL
-
 ```bash
-# Create mood entry
+# Generate AI response
 curl -X POST http://localhost:8000/api/therapist/generate/ \
   -H "Content-Type: application/json" \
-  -d '{"emoji": "😊", "thoughts": "Had an amazing day!"}'
+  -d '{"user_id": "user_123", "emoji": "😊", "thoughts": "Great day!"}'
 
 # Get history
-curl http://localhost:8000/api/therapist/history/
+curl "http://localhost:8000/api/therapist/history/?user_id=user_123"
+
+# Get weekly letter
+curl "http://localhost:8000/api/therapist/weekly-letter/?user_id=user_123"
 ```
 
-### Python
-
-```python
-import requests
-
-# Create mood entry
-response = requests.post(
-    'http://localhost:8000/api/therapist/generate/',
-    json={'emoji': '😔', 'thoughts': 'Feeling stressed today'}
-)
-print(response.json())
-
-# Get all entries
-history = requests.get('http://localhost:8000/api/therapist/history/')
-print(history.json())
-```
-
-### JavaScript
-
+### JavaScript (Fetch)
 ```javascript
-// Create mood entry
-fetch('http://localhost:8000/api/therapist/generate/', {
+// Generate AI response
+const res = await fetch('http://localhost:8000/api/therapist/generate/', {
   method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({
-    emoji: '😊',
-    thoughts: 'Feeling grateful today'
-  })
-})
-.then(res => res.json())
-.then(data => console.log(data));
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ user_id: 'user_123', emoji: '😊', thoughts: 'Feeling good!' })
+});
+const data = await res.json();
 
 // Get history
-fetch('http://localhost:8000/api/therapist/history/')
-.then(res => res.json())
-.then(data => console.log(data));
+const history = await fetch('http://localhost:8000/api/therapist/history/?user_id=user_123');
+const entries = await history.json();
 ```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"emoji and thoughts required" error**
-   - Ensure both `emoji` and `thoughts` fields are included in POST request
-
-2. **500 Error on POST**
-   - Check if `GROQ_API_KEY` environment variable is set
-   - Verify API key is valid in Groq console
-   - Check internet connection
-
-3. **"GROQ_API_KEY" not found**
-   ```bash
-   export GROQ_API_KEY="your-api-key-here"
-   ```
-
-4. **Static files not loading in production**
-   ```bash
-   python manage.py collectstatic
-   ```
-
-5. **Database locked errors**
-   - SQLite doesn't handle concurrent writes well
-   - Use PostgreSQL for production
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Write/update tests
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-## License
-
-This project is provided as-is for educational and personal use.
-
-## Disclaimer
-
-⚠️ **Important**: This application provides AI-generated supportive messages and is **NOT a replacement for professional mental health services**.
-
-If you're experiencing a mental health crisis, please contact:
-- **US**: National Suicide Prevention Lifeline: 988
-- **UK**: Samaritans: 116 123
-- **International**: [findahelpline.com](https://findahelpline.com)
-
-## Support & Contact
-
-- **Issues**: Open an issue in the GitHub repository
-- **Questions**: Check existing issues or start a discussion
-- **Groq API Docs**: [console.groq.com/docs](https://console.groq.com/docs)
 
 ---
 
-**Built with Django REST Framework • Powered by Groq API (Llama 3.1 8B)**
+## Troubleshooting
 
-**Last Updated**: March 27, 2026
+| Problem | Solution |
+| --- | --- |
+| 500 on POST | Check `GROQ_API_KEY` is set and valid |
+| `user_id` validation error | Use only letters, numbers, `_`, `-`; min 3 chars |
+| Static files 404 | Run `python manage.py collectstatic` |
+| Database locked | Switch to PostgreSQL for concurrent writes |
+| Slow responses | Normal — Groq API takes 1–2 seconds |
+
+---
+
+## Disclaimer
+
+This application provides AI-generated supportive messages and is **not a replacement for professional mental health services**.
+
+If you are in crisis, please reach out:
+- **US**: 988 (Suicide & Crisis Lifeline)
+- **UK**: 116 123 (Samaritans)
+- **International**: [findahelpline.com](https://findahelpline.com)
+
+---
+
+**Built with Django REST Framework · Powered by Groq API (Llama 3.1 8B)**
+
+Last Updated: April 8, 2026
