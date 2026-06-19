@@ -52,7 +52,8 @@ This is a Django REST Framework application that provides an AI-powered mental h
    - Uses **Groq API** (external cloud service), model: `llama-3.1-8b-instant`
    - Requires `GROQ_API_KEY` environment variable
    - Makes REST POST to `https://api.groq.com/openai/v1/chat/completions`
-   - System prompt: warm, supportive AI therapist; instructs Luna to append `[SESSION_END]` tag when the user expresses feeling better, relieved, or grateful
+   - System prompt (`LUNA_SYSTEM_PROMPT`): defines Luna's personality (gentle, non-robotic, friend-like), response rules (2-3 sentences max, one follow-up question, no lists/headers, never repeats herself), and explicit `[SESSION_END]` trigger examples (only on clear resolution/gratitude/goodbye, never on vague requests like "help me")
+   - Generation params tuned for natural variation: `temperature=0.85`, `max_tokens=180`, `top_p=0.9`, `frequency_penalty=0.6`, `presence_penalty=0.5`
    - **No local model loading** — stateless, synchronous API calls
    - Does not handle exceptions — caller is responsible
 
@@ -103,7 +104,7 @@ This is a Django REST Framework application that provides an AI-powered mental h
 **Core** ([requirements.txt](requirements.txt)):
 - `Django==5.1.4` — Web framework
 - `djangorestframework==3.17.1` — REST API
-- `drf-spectacular` — OpenAPI schema + Swagger/ReDoc
+- `drf-spectacular==0.27.2` — OpenAPI schema + Swagger/ReDoc (branded "MindEase AI Therapist API" in [core/settings.py](core/settings.py) `SPECTACULAR_SETTINGS`)
 - `requests==2.33.0` — HTTP client for Groq API calls
 - `gunicorn==25.3.0` — Production WSGI server
 - `whitenoise==6.5.0` — Static file serving for production
@@ -179,6 +180,7 @@ generate_ai_response(emoji: str, thoughts: str, history: list = None) -> str
 - ✅ `SECRET_KEY` uses environment variable with fallback
 - ✅ `DEBUG` uses environment variable (defaults to False)
 - ✅ `ALLOWED_HOSTS` configured for Railway (`["*", ".railway.app"]`)
+- ✅ `CSRF_TRUSTED_ORIGINS` includes the deployed Railway domain (`https://web-production-f8628.up.railway.app`) — **update this if the Railway app domain changes**
 - ✅ WhiteNoise configured for secure static file serving
 - ✅ `user_id` validated with strict regex on all endpoints
 - ⚠️ `ALLOWED_HOSTS = ["*"]` allows all hosts — restrict in production
@@ -203,9 +205,9 @@ python manage.py shell
 python manage.py collectstatic
 ```
 
-**Production** (uses Gunicorn per [Procfile](Procfile)):
+**Production** (uses Gunicorn per [Procfile](Procfile), launched automatically by Railway):
 ```bash
-gunicorn core.wsgi --log-file -
+gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
 ```
 
 ## API Behaviour
@@ -273,7 +275,9 @@ ai_therapist_backend/
 ├── .venv/                # Virtual environment
 ├── manage.py
 ├── requirements.txt
-├── Procfile              # Gunicorn config for Railway/Heroku
+├── Procfile              # Gunicorn start command (Railway/Heroku)
+├── runtime.txt           # Pins Python 3.11.9 for Railway
+├── README.md             # Setup/usage docs
 ├── db.sqlite3            # SQLite database
 └── .gitignore
 ```
@@ -336,7 +340,14 @@ ai_therapist_backend/
 
 ---
 
-**Last Updated**: 2026-04-08
+**Last Updated**: 2026-06-19
 **Django Version**: 5.1.4
-**Python Version**: 3.13
+**Python Version**: 3.11.9 (pinned via [runtime.txt](runtime.txt))
 **AI Provider**: Groq API (Llama 3.1 8B Instant)
+**Deployed**: Railway (no `railway.json`/`railway.toml` — platform auto-detects via [Procfile](Procfile) + [runtime.txt](runtime.txt))
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan:
+`specs/001-accounts-auth-module/plan.md`
+<!-- SPECKIT END -->
