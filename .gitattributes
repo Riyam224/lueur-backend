@@ -1,0 +1,8 @@
+# Tell GitHub Linguist to ignore these paths
+specs/**        linguist-documentation
+docs/**         linguist-documentation
+*.md            linguist-documentation
+*.sh            linguist-documentation
+*.html          linguist-vendored
+*.css           linguist-vendored
+staticfiles/**  linguist-vendored
