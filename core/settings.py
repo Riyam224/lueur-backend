@@ -201,6 +201,7 @@ to provide empathetic responses to your emotional entries.
 TESTING = "test" in sys.argv
 
 if not DEBUG and not TESTING:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
