@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MindEase API — AI Therapist</title>
+<title>Lueur API — AI Wellness Companion</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <style>
 
@@ -836,7 +836,7 @@ footer {
   <div class="nav-i">
     <a href="/" class="logo">
       <div class="logo-dot"></div>
-      MindEase API
+      Lueur API
     </a>
     <div class="nav-v">v1.0.0</div>
     <div class="nav-links">
@@ -855,21 +855,22 @@ footer {
     <div class="hero-g">
 
       <div class="hero-l">
-        <div class="tag"><div class="tag-dot"></div>Live on Railway · GROQ powered</div>
-        <h1>Your pocket<br><em>therapist API</em></h1>
+        <div class="tag"><div class="tag-dot"></div>Live on Railway · Flutter · Groq powered</div>
+        <h1>Grow through<br><em>every feeling</em></h1>
         <p class="hero-desc">
-          MindEase API delivers warm, empathetic AI responses to mood journal entries
-          using GROQ's llama-3.1-8b-instant — in under a second.
+          Lueur is a mental wellness app where Luna — your AI companion — tends to your
+          emotional garden. Built with Flutter, Django REST Framework, and
+          Groq's llama-3.1-8b-instant for warm, near-instant responses.
         </p>
         <div class="btns">
           <a href="/api/docs/"  class="btn-p">⚡ Swagger UI</a>
           <a href="/api/redoc/" class="btn-s">📖 ReDoc Docs</a>
         </div>
         <div class="stats">
-          <div><div class="stat-n">3</div><div class="stat-l">Endpoints</div></div>
+          <div><div class="stat-n">5</div><div class="stat-l">Endpoints</div></div>
           <div><div class="stat-n">&lt;1s</div><div class="stat-l">Response time</div></div>
           <div><div class="stat-n">REST</div><div class="stat-l">Standard</div></div>
-          <div><div class="stat-n">Free</div><div class="stat-l">No auth needed</div></div>
+          <div><div class="stat-n">🔐</div><div class="stat-l">Firebase Auth required</div></div>
         </div>
       </div>
 
@@ -881,19 +882,21 @@ footer {
             <div class="cc-lbl">POST /api/therapist/generate/</div>
             <div class="cc-ok">200 OK</div>
           </div>
-<pre><span class="cm">// Request body</span>
+<pre><span class="cm">// Headers</span>
+<span class="ky">"Authorization"</span><span class="pu">:</span> <span class="str">"Bearer &lt;firebase_id_token&gt;"</span>
+
+<span class="cm">// Request body (user_id is NOT sent — derived server-side)</span>
 <span class="pu">{</span>
-  <span class="ky">"user_id"</span><span class="pu">:</span>  <span class="str">"user_123"</span><span class="pu">,</span>
   <span class="ky">"emoji"</span><span class="pu">:</span>    <span class="str">"😔"</span><span class="pu">,</span>
   <span class="ky">"thoughts"</span><span class="pu">:</span> <span class="str">"I feel very overwhelmed
               with everything lately"</span><span class="pu">,</span>
   <span class="ky">"history"</span><span class="pu">:</span>  <span class="pu">[]</span> <span class="cm">// optional</span>
 <span class="pu">}</span>
 
-<span class="cm">// Response</span>
+<span class="cm">// Response (user_id derived from Firebase token)</span>
 <span class="pu">{</span>
   <span class="ky">"id"</span><span class="pu">:</span>          <span class="num">42</span><span class="pu">,</span>
-  <span class="ky">"user_id"</span><span class="pu">:</span>     <span class="str">"user_123"</span><span class="pu">,</span>
+  <span class="ky">"user_id"</span><span class="pu">:</span>     <span class="str">"7"</span><span class="pu">,</span> <span class="cm">// server-set, not client input</span>
   <span class="ky">"emoji"</span><span class="pu">:</span>       <span class="str">"😔"</span><span class="pu">,</span>
   <span class="ky">"thoughts"</span><span class="pu">:</span>    <span class="str">"I feel very overwhelmed..."</span><span class="pu">,</span>
   <span class="ky">"ai_response"</span><span class="pu">:</span> <span class="str">"It sounds like you're
@@ -913,8 +916,8 @@ footer {
   <div class="wrap">
     <div class="rv">
       <span class="sec-tag">// endpoints</span>
-      <h2>Three clean endpoints.<br>Infinite emotional support.</h2>
-      <p class="sec-desc">Simple REST API — no authentication required. Every request includes a <strong>user_id</strong> so entries stay grouped by user.</p>
+      <h2>Five clean endpoints.<br>Infinite emotional support.</h2>
+      <p class="sec-desc">Firebase-authenticated REST API — all endpoints require a Bearer token. Identity is derived server-side from the verified Firebase token.</p>
     </div>
 
     <div class="ep-grid rv">
@@ -924,8 +927,9 @@ footer {
           <div class="ep-path">/api/therapist/generate/</div>
           <div class="ep-desc">Send an emoji + thoughts and receive a warm, empathetic AI response from Luna. Pass optional conversation history for multi-turn context. Luna signals a resolved session with <code>[SESSION_END]</code> in her reply.</div>
           <div class="ep-pills">
-            <span class="pill">Body: user_id, emoji, thoughts</span>
+            <span class="pill">Body: emoji, thoughts</span>
             <span class="pill">Optional: history[]</span>
+            <span class="pill pill-p">Auth: Bearer token</span>
             <span class="pill pill-g">Returns: MoodEntry object</span>
             <span class="pill">Content-Type: application/json</span>
           </div>
@@ -937,9 +941,9 @@ footer {
         <div class="mth m-get">GET</div>
         <div>
           <div class="ep-path">/api/therapist/history/</div>
-          <div class="ep-desc">Retrieve mood journal entries for a specific user, ordered by most recent first. Each entry includes emoji, thoughts, Luna's full AI response, and timestamp.</div>
+          <div class="ep-desc">Retrieve mood journal entries for the authenticated user, ordered by most recent first. Each entry includes emoji, thoughts, Luna's full AI response, and timestamp.</div>
           <div class="ep-pills">
-            <span class="pill">Query: user_id (required)</span>
+            <span class="pill pill-p">Auth: Bearer token</span>
             <span class="pill pill-p">Returns: MoodEntry array</span>
             <span class="pill">Ordered: newest first</span>
           </div>
@@ -950,10 +954,37 @@ footer {
       <div class="ep">
         <div class="mth m-get">GET</div>
         <div>
-          <div class="ep-path">/api/therapist/weekly-letter/</div>
-          <div class="ep-desc">Generate a personalised weekly letter from Luna based on the last 7 days of a user's entries. Requires at least 2 entries in the past week. Returns a warm 3–4 paragraph letter, dominant mood emoji, and streak stats.</div>
+          <div class="ep-path">/api/accounts/me/</div>
+          <div class="ep-desc">Get or update the authenticated user's profile. PATCH accepts <code>full_name</code>, <code>phone_number</code>, <code>bio</code>, <code>date_of_birth</code>, <code>gender</code>. Firebase identity fields are read-only.</div>
           <div class="ep-pills">
-            <span class="pill">Query: user_id (required)</span>
+            <span class="pill pill-p">Auth: Bearer token</span>
+            <span class="pill pill-g">Returns: user profile</span>
+            <span class="pill">PATCH supported</span>
+          </div>
+        </div>
+        <div class="ep-badge">👤 Profile</div>
+      </div>
+
+      <div class="ep">
+        <div class="mth m-post">DELETE</div>
+        <div>
+          <div class="ep-path">/api/accounts/delete-account/</div>
+          <div class="ep-desc">Permanently deletes the authenticated user's Firebase identity and local account. Firebase deletion is attempted first; if it fails the local row is preserved and a 502 is returned.</div>
+          <div class="ep-pills">
+            <span class="pill pill-p">Auth: Bearer token</span>
+            <span class="pill">Irreversible</span>
+          </div>
+        </div>
+        <div class="ep-badge">🗑️ Danger</div>
+      </div>
+
+      <div class="ep">
+        <div class="mth m-get">GET</div>
+        <div>
+          <div class="ep-path">/api/therapist/weekly-letter/</div>
+          <div class="ep-desc">Generate a personalised weekly letter from Luna based on the last 7 days of the authenticated user's entries. Requires at least 2 entries in the past week. Returns a warm 3–4 paragraph letter, dominant mood emoji, and streak stats.</div>
+          <div class="ep-pills">
+            <span class="pill pill-p">Auth: Bearer token</span>
             <span class="pill pill-g">Returns: letter + stats</span>
             <span class="pill">Min: 2 entries / week</span>
           </div>
@@ -974,7 +1005,7 @@ footer {
       </div>
       <div class="model-fields">
         <div class="mf"><span class="mf-name">id</span><span class="mf-type">integer</span><span class="mf-desc">Unique identifier, auto-incremented</span></div>
-        <div class="mf"><span class="mf-name">user_id</span><span class="mf-type">string</span><span class="mf-desc">User identifier (3–128 chars, letters/numbers/_/-)</span></div>
+        <div class="mf"><span class="mf-name">user_id</span><span class="mf-type">string</span><span class="mf-desc">Internal user PK — derived from Firebase token server-side, never accepted from the client</span></div>
         <div class="mf"><span class="mf-name">emoji</span><span class="mf-type">string</span><span class="mf-desc">Mood emoji selected by user (e.g. 😔 😊 😰)</span></div>
         <div class="mf"><span class="mf-name">thoughts</span><span class="mf-type">string</span><span class="mf-desc">User's written thoughts and feelings</span></div>
         <div class="mf"><span class="mf-name">ai_response</span><span class="mf-type">string</span><span class="mf-desc">Luna's empathetic AI-generated response</span></div>
@@ -1003,7 +1034,7 @@ footer {
       <div class="fs">
         <div class="fi">🌐</div>
         <div class="ft">POST request</div>
-        <div class="fd">Send user_id, emoji, thoughts + optional history</div>
+        <div class="fd">Send Bearer token + emoji, thoughts + optional history</div>
       </div>
       <div class="fa"></div>
       <div class="fs">
@@ -1031,6 +1062,11 @@ footer {
     </div>
     <div class="feat-g rv">
       <div class="fc">
+        <div class="fc-ico" style="background:rgba(0,212,160,.1)">💙</div>
+        <div class="fc-t">Flutter</div>
+        <div class="fc-d">Cross-platform mobile app powering Lueur's plant-growth UI, Firebase Auth sign-in, and real-time Luna conversations.</div>
+      </div>
+      <div class="fc">
         <div class="fc-ico" style="background:rgba(0,212,160,.1)">🐍</div>
         <div class="fc-t">Django REST Framework</div>
         <div class="fc-d">Battle-tested Python API framework with automatic serialization, browsable API, and clean URL routing.</div>
@@ -1052,8 +1088,8 @@ footer {
       </div>
       <div class="fc">
         <div class="fc-ico" style="background:rgba(0,212,160,.1)">🔒</div>
-        <div class="fc-t">Secure by Design</div>
-        <div class="fc-d">API keys in environment variables only. CSRF trusted origins, WhiteNoise static files, HTTPS enforced.</div>
+        <div class="fc-t">Firebase Auth</div>
+        <div class="fc-d">Every endpoint is protected. Flutter clients authenticate via Firebase; the backend verifies ID tokens and derives identity server-side.</div>
       </div>
       <div class="fc">
         <div class="fc-ico" style="background:rgba(139,120,255,.1)">💾</div>
@@ -1079,12 +1115,17 @@ footer {
           <div class="cc-dots"><div class="cd"></div><div class="cd"></div><div class="cd"></div></div>
           <div class="cc-lbl">Flutter / Dart — generate</div>
         </div>
-<pre><span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">post</span>(
+<pre><span class="kw">final</span> token = <span class="kw">await</span> FirebaseAuth.instance
+  .currentUser!.<span class="fn">getIdToken</span>();
+
+<span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">post</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
     /api/therapist/generate/'</span>,
+  options: Options(headers: <span class="pu">{</span>
+    <span class="str">'Authorization'</span><span class="pu">:</span> <span class="str">'Bearer $token'</span>,
+  <span class="pu">}</span>),
   data: <span class="pu">{</span>
-    <span class="str">'user_id'</span><span class="pu">:</span>  <span class="str">'user_123'</span>,
     <span class="str">'emoji'</span><span class="pu">:</span>    emojiPath,
     <span class="str">'thoughts'</span><span class="pu">:</span> controller.text,
     <span class="str">'history'</span><span class="pu">:</span>  conversationHistory,
@@ -1101,10 +1142,16 @@ footer {
           <div class="cc-dots"><div class="cd"></div><div class="cd"></div><div class="cd"></div></div>
           <div class="cc-lbl">Flutter / Dart — history</div>
         </div>
-<pre><span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
+<pre><span class="kw">final</span> token = <span class="kw">await</span> FirebaseAuth.instance
+  .currentUser!.<span class="fn">getIdToken</span>();
+
+<span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/therapist/history/?user_id=user_123'</span>,
+    /api/therapist/history/'</span>,
+  options: Options(headers: <span class="pu">{</span>
+    <span class="str">'Authorization'</span><span class="pu">:</span> <span class="str">'Bearer $token'</span>,
+  <span class="pu">}</span>),
 );
 
 <span class="kw">final</span> List entries =
@@ -1121,14 +1168,15 @@ footer {
         </div>
 <pre><span class="kw">import</span> requests
 
-BASE = <span class="str">"https://web-production-f8628
+BASE    = <span class="str">"https://web-production-f8628
   .up.railway.app"</span>
+HEADERS = <span class="pu">{</span><span class="str">"Authorization"</span><span class="pu">:</span> <span class="str">"Bearer &lt;firebase_id_token&gt;"</span><span class="pu">}</span>
 
 <span class="cm"># Generate response (with conversation history)</span>
 res = requests.<span class="fn">post</span>(
   f<span class="str">"{BASE}/api/therapist/generate/"</span>,
+  headers=HEADERS,
   json=<span class="pu">{</span>
-    <span class="str">"user_id"</span><span class="pu">:</span>  <span class="str">"user_123"</span>,
     <span class="str">"emoji"</span><span class="pu">:</span>    <span class="str">"😔"</span>,
     <span class="str">"thoughts"</span><span class="pu">:</span> <span class="str">"I feel overwhelmed"</span>,
     <span class="str">"history"</span><span class="pu">:</span>  [],
@@ -1148,14 +1196,16 @@ entry = res.<span class="fn">json</span>()
   <span class="str">https://web-production-f8628
   .up.railway.app
   /api/therapist/generate/</span> \
-  <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span>\
-  <span class="kw">-d</span> <span class="str">'{"user_id":"user_123","emoji":"😔",
-      "thoughts":"I feel tired"}'</span>
+  <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
+  <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
+  <span class="kw">-d</span> <span class="str">'{"emoji":"😔","thoughts":"I feel tired"}'</span>
 
 <span class="cm"># Get full history</span>
-<span class="fn">curl</span> <span class="str">https://web-production-f8628
+<span class="fn">curl</span> \
+  <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
+  <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/therapist/history/?user_id=user_123</span></pre>
+  /api/therapist/history/</span></pre>
       </div>
 
       <div class="cc">
@@ -1163,10 +1213,16 @@ entry = res.<span class="fn">json</span>()
           <div class="cc-dots"><div class="cd"></div><div class="cd"></div><div class="cd"></div></div>
           <div class="cc-lbl">Flutter / Dart — weekly letter</div>
         </div>
-<pre><span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
+<pre><span class="kw">final</span> token = <span class="kw">await</span> FirebaseAuth.instance
+  .currentUser!.<span class="fn">getIdToken</span>();
+
+<span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/therapist/weekly-letter/?user_id=user_123'</span>,
+    /api/therapist/weekly-letter/'</span>,
+  options: Options(headers: <span class="pu">{</span>
+    <span class="str">'Authorization'</span><span class="pu">:</span> <span class="str">'Bearer $token'</span>,
+  <span class="pu">}</span>),
 );
 
 <span class="cm">// Response</span>
@@ -1191,9 +1247,9 @@ entry = res.<span class="fn">json</span>()
   <div class="wrap">
     <div class="cta-box rv">
       <h2 class="cta-t">Ready to build with<br>
-        <em style="font-style:normal;background:linear-gradient(130deg,var(--pb),var(--pk));background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 4s linear infinite">MindEase API?</em>
+        <em style="font-style:normal;background:linear-gradient(130deg,var(--pb),var(--pk));background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 4s linear infinite">Lueur API?</em>
       </h2>
-      <p class="cta-d">Fully documented · Zero auth required · Live on Railway · Free to use</p>
+      <p class="cta-d">Fully documented · Firebase Auth · Live on Railway · Flutter-first</p>
       <div class="btns" style="justify-content:center">
         <a href="/api/docs/"  class="btn-p">⚡ Open Swagger UI</a>
         <a href="/api/redoc/" class="btn-s">📖 Read ReDoc</a>
@@ -1208,8 +1264,8 @@ entry = res.<span class="fn">json</span>()
 <!-- FOOTER -->
 <div class="wrap">
   <footer>
-    <div class="fl">Built with 💜 by <strong>Riyam</strong> · MindEase AI Therapist API · 2026</div>
-    <div class="fr">Django REST · GROQ llama-3.1 · Railway</div>
+    <div class="fl">Built with 💜 by <strong>Riyam</strong> · Lueur — AI Wellness Companion · 2026</div>
+    <div class="fr">Flutter · Django REST · Groq llama-3.1 · Firebase · Railway</div>
   </footer>
 </div>
 
