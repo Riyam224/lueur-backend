@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import os
@@ -15,16 +16,24 @@ logger = logging.getLogger(__name__)
 
 
 def _init_firebase():
-    """Initialize Firebase Admin SDK from either a raw JSON env var
-    (Railway/production) or a local file path (development).
-
-    JSON env var takes priority since it's the production-safe option.
-    """
     if firebase_admin._apps:
         return
 
-    firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+    # Preferred: base64-encoded JSON (safe from newline/escaping corruption)
+    firebase_creds_b64 = os.environ.get("FIREBASE_CREDENTIALS_JSON_B64")
+    if firebase_creds_b64:
+        try:
+            decoded = base64.b64decode(firebase_creds_b64).decode("utf-8")
+            cred_dict = json.loads(decoded)
+        except Exception as exc:
+            logger.error("FIREBASE_CREDENTIALS_JSON_B64 is invalid: %s", exc)
+            return
+        firebase_admin.initialize_app(credentials.Certificate(cred_dict))
+        logger.info("Firebase initialized from FIREBASE_CREDENTIALS_JSON_B64.")
+        return
 
+    # Fallback: raw JSON env var
+    firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
     if firebase_creds_json:
         try:
             cred_dict = json.loads(firebase_creds_json)
@@ -32,9 +41,10 @@ def _init_firebase():
             logger.error("FIREBASE_CREDENTIALS_JSON is not valid JSON: %s", exc)
             return
         firebase_admin.initialize_app(credentials.Certificate(cred_dict))
-        logger.info("Firebase initialized from FIREBASE_CREDENTIALS_JSON env var.")
+        logger.info("Firebase initialized from FIREBASE_CREDENTIALS_JSON.")
         return
 
+    # Fallback: local file path
     if settings.FIREBASE_CREDENTIALS_PATH:
         firebase_admin.initialize_app(
             credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
@@ -42,10 +52,7 @@ def _init_firebase():
         logger.info("Firebase initialized from FIREBASE_CREDENTIALS_PATH file.")
         return
 
-    logger.warning(
-        "Firebase not initialized: neither FIREBASE_CREDENTIALS_JSON nor "
-        "FIREBASE_CREDENTIALS_PATH is set."
-    )
+    logger.warning("Firebase not initialized: no credentials source found.")
 
 
 _init_firebase()
@@ -75,9 +82,6 @@ class FirebaseAuthentication(BaseAuthentication):
             raise AuthenticationFailed("Invalid or expired token.")
 
         uid = decoded["uid"]
-        # Firebase users without an email (phone/anonymous sign-in) would
-        # otherwise collide on User.email's unique constraint once a second
-        # such user is created with email="".
         email = decoded.get("email") or f"{uid}@firebase.local"
 
         user, _ = User.objects.get_or_create(
