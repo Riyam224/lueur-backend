@@ -88,20 +88,12 @@ WSGI_APPLICATION = "core.wsgi.application"
 # -----------------------------------------------------
 # Database
 # -----------------------------------------------------
-
-
 DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
     )
 }
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.sqlite3",
-#         "NAME": BASE_DIR / "db.sqlite3",
-#     }
-# }
 
 # -----------------------------------------------------
 # Password validation
@@ -162,20 +154,25 @@ LOGGING = {
 }
 
 
-
 SPECTACULAR_SETTINGS = {
     "TITLE": "Lueur API",
     "DESCRIPTION": """
-## Welcome to MindEase API  🌱
+## Welcome to the Lueur API 🌱
 
-Lueur is an AI-powered mood journal that uses GROQ AI 
-to provide empathetic responses to your emotional entries.
+Lueur is a mental wellness app with an AI companion named **Luna**, using a growing 
+plant metaphor to encourage daily check-ins. This API handles user accounts and 
+AI-powered mood journaling.
 
 ### Features
-- 🤖 AI-powered emotional support responses
-- 📔 Mood journal with history tracking  
+- 🌸 Firebase-authenticated user accounts
+- 💬 AI-powered empathetic responses from Luna (Groq llama-3.1-8b-instant)
+- 📔 Mood journal with history tracking
 - 😔 Emoji-based mood selection
-- 💜 Powered by GROQ llama-3.1-8b-instant
+- 📝 Weekly personalized letters from Luna
+
+### Authentication
+All endpoints require a valid **Firebase ID token** in the `Authorization: Bearer <token>` 
+header. See the FirebaseAuth scheme below.
     """,
     "VERSION": "1.0.0",
     "CONTACT": {
@@ -187,14 +184,15 @@ to provide empathetic responses to your emotional entries.
     "TAGS": [
         {
             "name": "Therapist",
-            "description": "AI mood journal endpoints",
+            "description": "AI mood journal endpoints (Luna)",
         },
         {
             "name": "Accounts",
-            "description": "Authentication and account management endpoints",
+            "description": "Firebase-authenticated account management endpoints",
         },
     ],
 }
+
 # -----------------------------------------------------
 # Production security hardening
 # -----------------------------------------------------
