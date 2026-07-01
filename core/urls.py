@@ -32,6 +32,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # todo home page
     path("", TemplateView.as_view(template_name="index.html")),
+    path("privacy/", TemplateView.as_view(template_name="privacy.html"), name="privacy"),
     path("api/therapist/", include("therapist.urls")),
     path("api/accounts/", include("accounts.urls")),
     # API Documentation

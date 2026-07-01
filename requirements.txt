@@ -10,3 +10,4 @@ dj-database-url==3.1.2
 psycopg2-binary==2.9.12
 django-cors-headers==4.9.0
 sentry-sdk==2.64.0
+python-dotenv==1.0.1
