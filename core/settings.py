@@ -170,8 +170,8 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": """
 ## Welcome to the Lueur API 🌱
 
-Lueur is a mental wellness app with an AI companion named **Luna**, using a growing 
-plant metaphor to encourage daily check-ins. This API handles user accounts and 
+Lueur is a mental wellness app with an AI companion named **Luna**, using a growing
+plant metaphor to encourage daily check-ins. This API handles user accounts and
 AI-powered mood journaling.
 
 ### Features
@@ -182,7 +182,7 @@ AI-powered mood journaling.
 - 📝 Weekly personalized letters from Luna
 
 ### Authentication
-All endpoints require a valid **Firebase ID token** in the `Authorization: Bearer <token>` 
+All endpoints require a valid **Firebase ID token** in the `Authorization: Bearer <token>`
 header. See the FirebaseAuth scheme below.
     """,
     "VERSION": "1.0.0",
