@@ -30,13 +30,11 @@ def health_check(request):
     return JsonResponse({"status": "ok"})
 urlpatterns = [
     path("admin/", admin.site.urls),
-    # todo home page
     path("", TemplateView.as_view(template_name="index.html")),
     path("privacy/", TemplateView.as_view(template_name="privacy.html"), name="privacy"),
     path("api/therapist/", include("therapist.urls")),
     path("api/accounts/", include("accounts.urls")),
     path("api/auth/", include("accounts.urls")),
-    # API Documentation
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
@@ -44,6 +42,5 @@ urlpatterns = [
         name="swagger-ui",
     ),
     path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
-    # todo health check
     path("health/", health_check, name="health"),
 ]
