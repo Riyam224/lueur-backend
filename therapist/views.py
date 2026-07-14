@@ -23,7 +23,7 @@ class GenerateResponseAPIView(APIView):
     throttle_scope = "ai_generate"
 
     @extend_schema(
-        tags=["Therapist"],
+        tags=["Companion"],
         summary="Generate AI response",
         description="""
 Send an emoji and your thoughts to Luna, your AI companion.
@@ -119,7 +119,7 @@ class AllHistoryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        tags=["Therapist"],
+        tags=["Companion"],
         summary="Get mood history",
         description="""
 Returns all saved mood journal entries for the authenticated user, ordered by most recent first.
@@ -171,7 +171,7 @@ class WeeklyLetterAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
-        tags=["Therapist"],
+        tags=["Companion"],
         summary="Get Luna's weekly letter",
         description="Generates a personal weekly letter from Luna based on the authenticated user's recent entries.",
         responses={

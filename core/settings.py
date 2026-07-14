@@ -194,7 +194,7 @@ header. See the FirebaseAuth scheme below.
     "SERVE_INCLUDE_SCHEMA": False,
     "TAGS": [
         {
-            "name": "Therapist",
+            "name": "Companion",
             "description": "AI mood journal endpoints (Luna)",
         },
         {

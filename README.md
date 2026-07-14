@@ -1,6 +1,6 @@
-# MindEase — AI Therapist Backend
+# MindEase — AI Companion Backend
 
-A Django REST Framework backend that provides AI-powered emotional support, plus account/profile management. Users share their mood with an emoji and thoughts, and **Luna** (the AI therapist) responds with an empathetic, personalised message. All entries are saved per user for history tracking and weekly reflections.
+A Django REST Framework backend that provides AI-powered emotional support, plus account/profile management. Users share their mood with an emoji and thoughts, and **Luna** (the AI companion) responds with an empathetic, personalised message. All entries are saved per user for history tracking and weekly reflections.
 
 Powered by **Groq API with Llama 3.1 8B Instant** — no local GPU or ML dependencies required.
 
@@ -12,7 +12,7 @@ Authentication is handled entirely by **Firebase Auth**: the client (e.g. a Flut
 
 ## Features
 
-### Therapist (`/api/therapist/`)
+### Companion (`/api/therapist/`)
 
 - **Luna AI responses** — warm, empathetic replies via Groq's fast cloud API
 - **Multi-turn conversations** — pass conversation history so Luna maintains context across messages
@@ -125,7 +125,7 @@ Server runs at `http://127.0.0.1:8000/`
 
 All endpoints below require `Authorization: Bearer <firebase-id-token>`. There is no unauthenticated endpoint left in this API.
 
-### Therapist — Base URL: `/api/therapist/`
+### Companion — Base URL: `/api/therapist/`
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
