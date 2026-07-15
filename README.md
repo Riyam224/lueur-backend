@@ -476,7 +476,7 @@ const meRes = await fetch('http://localhost:8000/api/accounts/me/', {
 
 ## Disclaimer
 
-This application provides AI-generated supportive messages and is **not a replacement for professional mental health services**.
+This application provides AI-generated supportive messages and is **not a replacement for professional support**.
 
 If you are in crisis, please reach out:
 
