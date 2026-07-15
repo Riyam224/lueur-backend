@@ -307,7 +307,30 @@ or, on failure:
 
 **GET / PATCH `/api/accounts/me/`** — `GET` returns the authenticated user's profile; `PATCH` updates only `full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`. Any other field in the payload (`firebase_uid`, `email`, `username`, `is_staff`, ...) is silently ignored.
 
-**DELETE `/api/accounts/delete-account/`** — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then all matching `therapist.MoodEntry` rows, then the local Django row. If the Firebase-side call fails, the request returns `502` and nothing else is deleted (no orphaned Firebase identity, retryable).
+**POST `/api/accounts/verify/`** (alias `/api/auth/verify/`) — No auth required; called by the client right after Firebase sign-in/sign-up. Verifies the Firebase ID token and returns a flat (non-enveloped) JSON object, auto-creating the linked `accounts.User` on first sight:
+
+```json
+{
+  "firebase_uid": "abc123",
+  "email": "user@example.com",
+  "name": "Alex",
+  "picture": "https://...",
+  "email_verified": true,
+  "is_new_user": false
+}
+```
+
+### Account Deletion
+
+**DELETE `/api/accounts/delete-account/`** (self-service, requires auth) — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then all matching `therapist.MoodEntry` rows, then the local Django row. If the Firebase-side call fails, the request returns `502` and nothing else is deleted (no orphaned Firebase identity, retryable).
+
+**Web-based deletion request** (no app access required) — The privacy policy (`/privacy/`) promises a way to request deletion for users who can't open the app. That promise is backed by `accounts.services.delete_user_account()` — the exact same function the API endpoint calls — exposed as a management command:
+
+```bash
+python manage.py delete_user_by_email someone@example.com
+```
+
+Both paths share one implementation, so there's no risk of the manual path doing something different (or less complete) than the in-app one.
 
 ---
 
