@@ -7,15 +7,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from therapist.models import MoodEntry
-
 from .models import User
 from .serializers import (
     UserProfileUpdateSerializer,
     UserSerializer,
     VerifyTokenSerializer,
 )
-from .services import error_response, success_response
+from .services import delete_user_account, error_response, success_response
 
 logger = logging.getLogger(__name__)
 
@@ -76,23 +74,20 @@ class DeleteAccountView(APIView):
     )
     def delete(self, request):
         user = request.user
-        if user.firebase_uid:
-            try:
-                firebase_auth_admin.delete_user(user.firebase_uid)
-            except Exception as exc:
-                logger.error(
-                    "Firebase delete_user failed for uid=%s: %s",
-                    user.firebase_uid,
-                    exc,
-                )
-                return Response(
-                    error_response(
-                        "Failed to delete Firebase identity. Account not deleted."
-                    ),
-                    status=status.HTTP_502_BAD_GATEWAY,
-                )
-        MoodEntry.objects.filter(user_id=str(user.id)).delete()
-        user.delete()
+        try:
+            delete_user_account(user)
+        except Exception as exc:
+            logger.error(
+                "Firebase delete_user failed for uid=%s: %s",
+                user.firebase_uid,
+                exc,
+            )
+            return Response(
+                error_response(
+                    "Failed to delete Firebase identity. Account not deleted."
+                ),
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
         return Response(success_response("Account deleted permanently."))
 
 

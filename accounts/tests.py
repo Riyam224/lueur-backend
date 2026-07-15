@@ -1,5 +1,8 @@
+from io import StringIO
 from unittest.mock import patch
 
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -225,3 +228,53 @@ class VerifyFirebaseTokenTests(TestCase):
             "/api/auth/verify/", {"firebase_token": "sometoken"}, format="json"
         )
         self.assertEqual(response.status_code, 502)
+
+
+class DeleteUserByEmailCommandTests(TestCase):
+    """Exercises the web-based account-deletion request path promised in
+    templates/privacy.html for users who can't open the app: an operator
+    runs `manage.py delete_user_by_email <email>` on request. These tests
+    hit the real database directly (not the API), confirming the command
+    itself actually removes the rows rather than trusting a mocked
+    assertion."""
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    def test_deletes_user_and_mood_entries_for_real(self, mock_delete):
+        user = User.objects.create(
+            email="requester@example.com",
+            firebase_uid="requester-uid",
+            username="requester-uid",
+        )
+        MoodEntry.objects.create(
+            user_id=str(user.id), emoji="😊", thoughts="entry one", ai_response="ok"
+        )
+        MoodEntry.objects.create(
+            user_id=str(user.id), emoji="😔", thoughts="entry two", ai_response="ok"
+        )
+        user_id = user.id
+
+        out = StringIO()
+        call_command("delete_user_by_email", "requester@example.com", stdout=out)
+
+        mock_delete.assert_called_once_with("requester-uid")
+        self.assertFalse(User.objects.filter(id=user_id).exists())
+        self.assertEqual(MoodEntry.objects.filter(user_id=str(user_id)).count(), 0)
+        self.assertIn("Deleted account and journal entries", out.getvalue())
+
+    def test_unknown_email_raises_command_error_and_deletes_nothing(self):
+        with self.assertRaises(CommandError):
+            call_command("delete_user_by_email", "nobody@example.com")
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    def test_firebase_failure_propagates_and_keeps_local_row(self, mock_delete):
+        user = User.objects.create(
+            email="keepme@example.com",
+            firebase_uid="keepme-uid",
+            username="keepme-uid",
+        )
+        mock_delete.side_effect = Exception("network error")
+
+        with self.assertRaises(Exception):
+            call_command("delete_user_by_email", "keepme@example.com")
+
+        self.assertTrue(User.objects.filter(email="keepme@example.com").exists())
