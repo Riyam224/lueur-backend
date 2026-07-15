@@ -83,7 +83,7 @@ This is a Django REST Framework application that provides an AI-powered mental h
 - **Main URLs** ([core/urls.py](core/urls.py)):
   - `/` → Home page (`templates/index.html`)
   - `/admin/` → Django admin interface
-  - `/api/therapist/` → Includes therapist app URLs
+  - `/api/companion/` → Includes companion (therapist) app URLs
   - `/api/accounts/` → Includes accounts app URLs
   - `/api/schema/` → OpenAPI schema
   - `/api/docs/` → Swagger UI
@@ -100,9 +100,9 @@ This is a Django REST Framework application that provides an AI-powered mental h
 
 All endpoints below (except none — every endpoint now requires auth) require `Authorization: Bearer <firebase-id-token>`. Missing/invalid/expired token → `401 Unauthorized`.
 
-- `POST /api/therapist/generate/` — Create mood entry with AI response, scoped to `request.user`
-- `GET /api/therapist/history/` — Retrieve entries for the authenticated user
-- `GET /api/therapist/weekly-letter/` — Get Luna's weekly letter for the authenticated user
+- `POST /api/companion/generate/` — Create mood entry with AI response, scoped to `request.user`
+- `GET /api/companion/history/` — Retrieve entries for the authenticated user
+- `GET /api/companion/weekly-letter/` — Get Luna's weekly letter for the authenticated user
 - `GET /api/accounts/me/` — Get the authenticated user's profile
 - `PATCH /api/accounts/me/` — Update editable profile fields (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender` only)
 - `DELETE /api/accounts/delete-account/` — Delete the user's Firebase identity and local account permanently
@@ -161,7 +161,7 @@ class TherapistAPITests(TestCase):
     def test_create_mood_entry(self, mock_generate):
         mock_generate.return_value = "Mocked AI response"
         response = self.client.post(
-            '/api/therapist/generate/',
+            '/api/companion/generate/',
             {'emoji': '😊', 'thoughts': 'Great day!'},
             format='json',
             HTTP_AUTHORIZATION="Bearer faketoken",
@@ -247,7 +247,7 @@ gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
 
 ### POST Request Flow (Generate Endpoint)
 
-1. Request received at `POST /api/therapist/generate/` — `FirebaseAuthentication` verifies the Bearer token; 401 if missing/invalid/expired
+1. Request received at `POST /api/companion/generate/` — `FirebaseAuthentication` verifies the Bearer token; 401 if missing/invalid/expired
 2. Input validated by `MoodEntryCreateSerializer` (`emoji`, `thoughts`, optional `history`) — 400 if invalid
 3. `history` extracted from validated data (last 10 items kept to cap context)
 4. `generate_ai_response(emoji, thoughts, history)` called; exception caught → fallback message used
@@ -257,13 +257,13 @@ gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
 
 ### GET Request Flow (History Endpoint)
 
-1. Request received at `GET /api/therapist/history/` — 401 if unauthenticated
+1. Request received at `GET /api/companion/history/` — 401 if unauthenticated
 2. `MoodEntry.objects.filter(user_id=str(request.user.id)).order_by("-created_at")`
 3. All matching entries serialized and returned
 
 ### GET Request Flow (Weekly Letter Endpoint)
 
-1. Request received at `GET /api/therapist/weekly-letter/` — 401 if unauthenticated
+1. Request received at `GET /api/companion/weekly-letter/` — 401 if unauthenticated
 2. Entries from last 7 days fetched for `str(request.user.id)`
 3. If < 2 entries: `{"letter": null, "reason": "not_enough_entries"}` (200)
 4. Entries formatted, dominant emoji found

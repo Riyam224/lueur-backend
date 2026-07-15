@@ -879,7 +879,7 @@ footer {
         <div class="cc">
           <div class="cc-hdr">
             <div class="cc-dots"><div class="cd"></div><div class="cd"></div><div class="cd"></div></div>
-            <div class="cc-lbl">POST /api/therapist/generate/</div>
+            <div class="cc-lbl">POST /api/companion/generate/</div>
             <div class="cc-ok">200 OK</div>
           </div>
 <pre><span class="cm">// Headers</span>
@@ -924,7 +924,7 @@ footer {
       <div class="ep">
         <div class="mth m-post">POST</div>
         <div>
-          <div class="ep-path">/api/therapist/generate/</div>
+          <div class="ep-path">/api/companion/generate/</div>
           <div class="ep-desc">Send an emoji + thoughts and receive a warm, empathetic AI response from Luna. Pass optional conversation history for multi-turn context. Luna signals a resolved session with <code>[SESSION_END]</code> in her reply.</div>
           <div class="ep-pills">
             <span class="pill">Body: emoji, thoughts</span>
@@ -940,7 +940,7 @@ footer {
       <div class="ep">
         <div class="mth m-get">GET</div>
         <div>
-          <div class="ep-path">/api/therapist/history/</div>
+          <div class="ep-path">/api/companion/history/</div>
           <div class="ep-desc">Retrieve mood journal entries for the authenticated user, ordered by most recent first. Each entry includes emoji, thoughts, Luna's full AI response, and timestamp.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
@@ -981,7 +981,7 @@ footer {
       <div class="ep">
         <div class="mth m-get">GET</div>
         <div>
-          <div class="ep-path">/api/therapist/weekly-letter/</div>
+          <div class="ep-path">/api/companion/weekly-letter/</div>
           <div class="ep-desc">Generate a personalised weekly letter from Luna based on the last 7 days of the authenticated user's entries. Requires at least 2 entries in the past week. Returns a warm 3–4 paragraph letter, dominant mood emoji, and streak stats.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
@@ -1121,7 +1121,7 @@ footer {
 <span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">post</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/therapist/generate/'</span>,
+    /api/companion/generate/'</span>,
   options: Options(headers: <span class="pu">{</span>
     <span class="str">'Authorization'</span><span class="pu">:</span> <span class="str">'Bearer $token'</span>,
   <span class="pu">}</span>),
@@ -1148,7 +1148,7 @@ footer {
 <span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/therapist/history/'</span>,
+    /api/companion/history/'</span>,
   options: Options(headers: <span class="pu">{</span>
     <span class="str">'Authorization'</span><span class="pu">:</span> <span class="str">'Bearer $token'</span>,
   <span class="pu">}</span>),
@@ -1174,7 +1174,7 @@ HEADERS = <span class="pu">{</span><span class="str">"Authorization"</span><span
 
 <span class="cm"># Generate response (with conversation history)</span>
 res = requests.<span class="fn">post</span>(
-  f<span class="str">"{BASE}/api/therapist/generate/"</span>,
+  f<span class="str">"{BASE}/api/companion/generate/"</span>,
   headers=HEADERS,
   json=<span class="pu">{</span>
     <span class="str">"emoji"</span><span class="pu">:</span>    <span class="str">"😔"</span>,
@@ -1195,7 +1195,7 @@ entry = res.<span class="fn">json</span>()
 <span class="fn">curl</span> <span class="kw">-X POST</span> \
   <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/therapist/generate/</span> \
+  /api/companion/generate/</span> \
   <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
   <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
   <span class="kw">-d</span> <span class="str">'{"emoji":"😔","thoughts":"I feel tired"}'</span>
@@ -1205,7 +1205,7 @@ entry = res.<span class="fn">json</span>()
   <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
   <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/therapist/history/</span></pre>
+  /api/companion/history/</span></pre>
       </div>
 
       <div class="cc">
@@ -1219,7 +1219,7 @@ entry = res.<span class="fn">json</span>()
 <span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/therapist/weekly-letter/'</span>,
+    /api/companion/weekly-letter/'</span>,
   options: Options(headers: <span class="pu">{</span>
     <span class="str">'Authorization'</span><span class="pu">:</span> <span class="str">'Bearer $token'</span>,
   <span class="pu">}</span>),

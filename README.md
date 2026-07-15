@@ -12,7 +12,7 @@ Authentication is handled entirely by **Firebase Auth**: the client (e.g. a Flut
 
 ## Features
 
-### Companion (`/api/therapist/`)
+### Companion (`/api/companion/`)
 
 - **Luna AI responses** — warm, empathetic replies via Groq's fast cloud API
 - **Multi-turn conversations** — pass conversation history so Luna maintains context across messages
@@ -125,13 +125,13 @@ Server runs at `http://127.0.0.1:8000/`
 
 All endpoints below require `Authorization: Bearer <firebase-id-token>`. There is no unauthenticated endpoint left in this API.
 
-### Companion — Base URL: `/api/therapist/`
+### Companion — Base URL: `/api/companion/`
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| POST | `/api/therapist/generate/` | Submit mood, get Luna's AI response (scoped to the authenticated user) |
-| GET | `/api/therapist/history/` | Get all saved entries for the authenticated user |
-| GET | `/api/therapist/weekly-letter/` | Get Luna's weekly reflection letter for the authenticated user |
+| POST | `/api/companion/generate/` | Submit mood, get Luna's AI response (scoped to the authenticated user) |
+| GET | `/api/companion/history/` | Get all saved entries for the authenticated user |
+| GET | `/api/companion/weekly-letter/` | Get Luna's weekly reflection letter for the authenticated user |
 
 ### Accounts — Base URL: `/api/accounts/`
 
@@ -158,7 +158,7 @@ Interactive docs available at:
 
 ---
 
-### POST `/api/therapist/generate/`
+### POST `/api/companion/generate/`
 
 Submit a mood entry. Luna responds with an empathetic message that is saved to the journal under the authenticated user.
 
@@ -204,7 +204,7 @@ If the Groq API is unavailable, the entry is still saved with a fallback message
 
 ---
 
-### GET `/api/therapist/history/`
+### GET `/api/companion/history/`
 
 Returns all mood entries for the authenticated user, newest first.
 
@@ -225,7 +225,7 @@ Returns all mood entries for the authenticated user, newest first.
 
 ---
 
-### GET `/api/therapist/weekly-letter/`
+### GET `/api/companion/weekly-letter/`
 
 Luna writes a personal letter summarising the authenticated user's emotional week (last 7 days).
 
@@ -390,7 +390,7 @@ class TherapistAPITests(TestCase):
     def test_create_mood_entry(self, mock_generate):
         mock_generate.return_value = "Mocked AI response"
         response = self.client.post(
-            '/api/therapist/generate/',
+            '/api/companion/generate/',
             {'emoji': '😊', 'thoughts': 'Great day!'},
             format='json',
             HTTP_AUTHORIZATION="Bearer faketoken",
@@ -407,17 +407,17 @@ class TherapistAPITests(TestCase):
 
 ```bash
 # Generate AI response (with optional conversation history)
-curl -X POST http://localhost:8000/api/therapist/generate/ \
+curl -X POST http://localhost:8000/api/companion/generate/ \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <firebase-id-token>" \
   -d '{"emoji": "😊", "thoughts": "Great day!", "history": []}'
 
 # Get history
-curl http://localhost:8000/api/therapist/history/ \
+curl http://localhost:8000/api/companion/history/ \
   -H "Authorization: Bearer <firebase-id-token>"
 
 # Get weekly letter
-curl http://localhost:8000/api/therapist/weekly-letter/ \
+curl http://localhost:8000/api/companion/weekly-letter/ \
   -H "Authorization: Bearer <firebase-id-token>"
 
 # Get profile
@@ -432,7 +432,7 @@ curl http://localhost:8000/api/accounts/me/ \
 // const idToken = await firebase.auth().currentUser.getIdToken();
 
 // Generate AI response (pass history for multi-turn context)
-const res = await fetch('http://localhost:8000/api/therapist/generate/', {
+const res = await fetch('http://localhost:8000/api/companion/generate/', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -448,7 +448,7 @@ const data = await res.json();
 // If data.ai_response includes '[SESSION_END]', close the session
 
 // Get history
-const history = await fetch('http://localhost:8000/api/therapist/history/', {
+const history = await fetch('http://localhost:8000/api/companion/history/', {
   headers: { Authorization: `Bearer ${idToken}` },
 });
 const entries = await history.json();
@@ -465,7 +465,7 @@ const meRes = await fetch('http://localhost:8000/api/accounts/me/', {
 
 | Problem | Solution |
 | --- | --- |
-| 500 on POST `/api/therapist/generate/` | Check `GROQ_API_KEY` is set and valid |
+| 500 on POST `/api/companion/generate/` | Check `GROQ_API_KEY` is set and valid |
 | 401 on any endpoint | Missing/invalid/expired Firebase ID token, or `FIREBASE_CREDENTIALS_PATH` not set/invalid — check server logs for "Firebase token verification failed" |
 | Static files 404 | Run `python manage.py collectstatic` |
 | Database locked | Switch to PostgreSQL for concurrent writes |

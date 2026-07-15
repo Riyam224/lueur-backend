@@ -64,12 +64,12 @@ def test_delete_account_removes_firebase_and_local_user(self, mock_verify, mock_
 @patch("therapist.views.generate_ai_response")
 def test_generate_requires_auth_and_scopes_to_user(self, mock_ai, mock_verify):
     mock_ai.return_value = "Mocked reply"
-    resp = self.client.post("/api/therapist/generate/", {"emoji": "😊", "thoughts": "ok"}, format="json")
+    resp = self.client.post("/api/companion/generate/", {"emoji": "😊", "thoughts": "ok"}, format="json")
     self.assertEqual(resp.status_code, 401)  # no token
 
     mock_verify.return_value = {"uid": "u1", "email": "u1@example.com"}
     resp = self.client.post(
-        "/api/therapist/generate/", {"emoji": "😊", "thoughts": "ok"}, format="json",
+        "/api/companion/generate/", {"emoji": "😊", "thoughts": "ok"}, format="json",
         HTTP_AUTHORIZATION="Bearer faketoken",
     )
     self.assertEqual(resp.status_code, 200)

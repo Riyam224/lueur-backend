@@ -32,7 +32,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", TemplateView.as_view(template_name="index.html")),
     path("privacy/", TemplateView.as_view(template_name="privacy.html"), name="privacy"),
-    path("api/therapist/", include("therapist.urls")),
+    path("api/companion/", include("therapist.urls")),
     path("api/accounts/", include("accounts.urls")),
     path("api/auth/", include("accounts.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

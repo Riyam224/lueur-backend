@@ -31,7 +31,7 @@ All endpoints below require `Authorization: Bearer <firebase-id-token>` unless n
 
 ## `therapist/` — modified contracts (auth added, `user_id` removed)
 
-### `POST /api/therapist/generate/`
+### `POST /api/companion/generate/`
 
 - **Auth**: required (was: none).
 - **Request body** (changed): `{"emoji": str, "thoughts": str, "history": [{"role", "content"}, ...] (optional, last 10 kept)}` — **`user_id` removed**; isolation key is `str(request.user.id)`.
@@ -39,14 +39,14 @@ All endpoints below require `Authorization: Bearer <firebase-id-token>` unless n
 - **Response 401** (new): unauthenticated request.
 - **Response 400**: unchanged — missing `emoji`/`thoughts`.
 
-### `GET /api/therapist/history/`
+### `GET /api/companion/history/`
 
 - **Auth**: required (was: none).
 - **Query params** (changed): none required — **`user_id` query param removed**; isolation key is `str(request.user.id)`.
 - **Response 200**: unchanged shape (list of `MoodEntrySerializer`), scoped to caller.
 - **Response 401** (new): unauthenticated request.
 
-### `GET /api/therapist/weekly-letter/`
+### `GET /api/companion/weekly-letter/`
 
 - **Auth**: required (was: none).
 - **Query params** (changed): none required — **`user_id` query param removed**.
