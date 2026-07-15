@@ -1,4 +1,4 @@
-#  lueur-backend — AI Companion
+# Lueur Backend — AI Wellness Companion API
 
 A Django REST Framework backend that provides AI-powered emotional support, plus account/profile management. Users share their mood with an emoji and thoughts, and **Luna** (the AI companion) responds with an empathetic, personalised message. All entries are saved per user for history tracking and weekly reflections.
 
@@ -6,7 +6,7 @@ Powered by **Groq API with Llama 3.1 8B Instant** — no local GPU or ML depende
 
 Authentication is handled entirely by **Firebase Auth**: the client (e.g. a Flutter app) signs in via Firebase (email/password, Google, Apple), and Django verifies the resulting Firebase ID token on every request — Django never issues, stores, or refreshes its own credentials.
 
-> 📘 For a full architecture/API report with diagrams and a complete Flutter + Firebase integration guide, see [`docs/API_AND_FLUTTER_INTEGRATION_REPORT.md`](docs/API_AND_FLUTTER_INTEGRATION_REPORT.md).
+Every journal entry is checked for crisis language **before** it ever reaches an LLM. See [Crisis Detection](#crisis-detection) below.
 
 ---
 

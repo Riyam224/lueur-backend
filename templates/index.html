@@ -475,8 +475,9 @@ h2 {
   margin-top: 3px;
 }
 
-.m-post { background: rgba(0, 212, 160, 0.1);   color: var(--mint); border: 1px solid rgba(0, 212, 160, 0.18); }
-.m-get  { background: rgba(139, 120, 255, 0.1); color: var(--pb);   border: 1px solid rgba(139, 120, 255, 0.18); }
+.m-post   { background: rgba(0, 212, 160, 0.1);   color: var(--mint); border: 1px solid rgba(0, 212, 160, 0.18); }
+.m-get    { background: rgba(139, 120, 255, 0.1); color: var(--pb);   border: 1px solid rgba(139, 120, 255, 0.18); }
+.m-delete { background: rgba(255, 110, 180, 0.1); color: var(--pk);   border: 1px solid rgba(255, 110, 180, 0.18); }
 
 .ep-path {
   font-family: var(--font-mono);
@@ -838,12 +839,13 @@ footer {
       <div class="logo-dot"></div>
       Lueur API
     </a>
-    <div class="nav-v">v1.0.0</div>
+    <div class="nav-v">v1.1.0</div>
     <div class="nav-links">
       <a href="#endpoints" class="nl">Endpoints</a>
       <a href="#features"  class="nl">Stack</a>
       <a href="#examples"  class="nl">Examples</a>
       <a href="/api/redoc/" class="nl">ReDoc</a>
+      <a href="/privacy/" class="nl">Privacy</a>
       <a href="/api/docs/" class="nl-cta">Try it live ↗</a>
     </div>
   </div>
@@ -858,16 +860,18 @@ footer {
         <div class="tag"><div class="tag-dot"></div>Live on Railway · Flutter · Groq powered</div>
         <h1>Grow through<br><em>every feeling</em></h1>
         <p class="hero-desc">
-          Lueur is a mental wellness app where Luna — your AI companion — tends to your
+          Lueur is an AI wellness companion app where Luna tends to your
           emotional garden. Built with Flutter, Django REST Framework, and
-          Groq's llama-3.1-8b-instant for warm, near-instant responses.
+          Groq's llama-3.1-8b-instant for warm, near-instant responses —
+          with built-in crisis-language detection to keep sensitive
+          moments away from the AI and pointed at real human support.
         </p>
         <div class="btns">
           <a href="/api/docs/"  class="btn-p">⚡ Swagger UI</a>
           <a href="/api/redoc/" class="btn-s">📖 ReDoc Docs</a>
         </div>
         <div class="stats">
-          <div><div class="stat-n">5</div><div class="stat-l">Endpoints</div></div>
+          <div><div class="stat-n">6</div><div class="stat-l">Endpoints</div></div>
           <div><div class="stat-n">&lt;1s</div><div class="stat-l">Response time</div></div>
           <div><div class="stat-n">REST</div><div class="stat-l">Standard</div></div>
           <div><div class="stat-n">🔐</div><div class="stat-l">Firebase Auth required</div></div>
@@ -899,10 +903,11 @@ footer {
   <span class="ky">"user_id"</span><span class="pu">:</span>     <span class="str">"7"</span><span class="pu">,</span> <span class="cm">// server-set, not client input</span>
   <span class="ky">"emoji"</span><span class="pu">:</span>       <span class="str">"😔"</span><span class="pu">,</span>
   <span class="ky">"thoughts"</span><span class="pu">:</span>    <span class="str">"I feel very overwhelmed..."</span><span class="pu">,</span>
-  <span class="ky">"ai_response"</span><span class="pu">:</span> <span class="str">"It sounds like you're
-    carrying a lot right now 💜
-    One small step at a time..."</span><span class="pu">,</span>
-  <span class="ky">"created_at"</span><span class="pu">:</span>  <span class="str">"2026-04-02T19:00:00Z"</span>
+  <span class="ky">"ai_response"</span><span class="pu">:</span> <span class="str">"aw no, that's a lot to
+    carry 💜 what's weighing
+    on you most right now?"</span><span class="pu">,</span>
+  <span class="ky">"created_at"</span><span class="pu">:</span>  <span class="str">"2026-04-02T19:00:00Z"</span><span class="pu">,</span>
+  <span class="ky">"crisis_flagged"</span><span class="pu">:</span> <span class="kw">false</span>
 <span class="pu">}</span></pre>
         </div>
       </div>
@@ -916,7 +921,7 @@ footer {
   <div class="wrap">
     <div class="rv">
       <span class="sec-tag">// endpoints</span>
-      <h2>Five clean endpoints.<br>Infinite emotional support.</h2>
+      <h2>Six clean endpoints.<br>Infinite emotional support.</h2>
       <p class="sec-desc">Firebase-authenticated REST API — all endpoints require a Bearer token. Identity is derived server-side from the verified Firebase token.</p>
     </div>
 
@@ -925,7 +930,7 @@ footer {
         <div class="mth m-post">POST</div>
         <div>
           <div class="ep-path">/api/companion/generate/</div>
-          <div class="ep-desc">Send an emoji + thoughts and receive a warm, empathetic AI response from Luna. Pass optional conversation history for multi-turn context. Luna signals a resolved session with <code>[SESSION_END]</code> in her reply.</div>
+          <div class="ep-desc">Send an emoji + thoughts and receive a warm, empathetic AI response from Luna. Pass optional conversation history for multi-turn context. Luna signals a resolved session with <code>[SESSION_END]</code> in her reply. Crisis-language is detected before any AI call and short-circuits to a static support response with <code>crisis_flagged: true</code>.</div>
           <div class="ep-pills">
             <span class="pill">Body: emoji, thoughts</span>
             <span class="pill">Optional: history[]</span>
@@ -966,16 +971,31 @@ footer {
       </div>
 
       <div class="ep">
-        <div class="mth m-post">DELETE</div>
+        <div class="mth m-delete">DELETE</div>
         <div>
           <div class="ep-path">/api/accounts/delete-account/</div>
-          <div class="ep-desc">Permanently deletes the authenticated user's Firebase identity and local account. Firebase deletion is attempted first; if it fails the local row is preserved and a 502 is returned.</div>
+          <div class="ep-desc">Permanently deletes the authenticated user's Firebase identity, journal entries, and local account. Firebase deletion is attempted first; if it fails nothing else is deleted and a 502 is returned. Users who can't open the app can request the same deletion by email — see the Privacy Policy.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
             <span class="pill">Irreversible</span>
+            <span class="pill pill-g">Cascades: MoodEntry</span>
           </div>
         </div>
         <div class="ep-badge">🗑️ Danger</div>
+      </div>
+
+      <div class="ep">
+        <div class="mth m-post">POST</div>
+        <div>
+          <div class="ep-path">/api/accounts/verify/</div>
+          <div class="ep-desc">Verifies a Firebase ID token and returns the linked Django user, creating it on first sight. Called right after Firebase sign-in/sign-up. Also reachable at <code>/api/auth/verify/</code> for existing clients.</div>
+          <div class="ep-pills">
+            <span class="pill">Body: firebase_token</span>
+            <span class="pill pill-g">Returns: flat user JSON</span>
+            <span class="pill">Public — no Bearer token yet</span>
+          </div>
+        </div>
+        <div class="ep-badge">🔑 Identity</div>
       </div>
 
       <div class="ep">
@@ -1010,6 +1030,7 @@ footer {
         <div class="mf"><span class="mf-name">thoughts</span><span class="mf-type">string</span><span class="mf-desc">User's written thoughts and feelings</span></div>
         <div class="mf"><span class="mf-name">ai_response</span><span class="mf-type">string</span><span class="mf-desc">Luna's empathetic AI-generated response</span></div>
         <div class="mf"><span class="mf-name">created_at</span><span class="mf-type">datetime</span><span class="mf-desc">ISO 8601 timestamp of when entry was created</span></div>
+        <div class="mf"><span class="mf-name">crisis_flagged</span><span class="mf-type">boolean</span><span class="mf-desc">True if the entry's thoughts matched crisis-language detection — Groq was never called for this entry</span></div>
       </div>
     </div>
 
@@ -1095,6 +1116,11 @@ footer {
         <div class="fc-ico" style="background:rgba(139,120,255,.1)">💾</div>
         <div class="fc-t">Persistent Storage</div>
         <div class="fc-d">Every mood entry is saved to the database. Full journal history with timestamps and unique IDs.</div>
+      </div>
+      <div class="fc">
+        <div class="fc-ico" style="background:rgba(255,110,180,.1)">🛟</div>
+        <div class="fc-t">Crisis Detection</div>
+        <div class="fc-d">Journal text is checked for crisis language before it ever reaches Groq — at both the endpoint and the AI-service layer. Matches short-circuit to a static support response with real hotline numbers.</div>
       </div>
     </div>
   </div>
@@ -1264,7 +1290,7 @@ entry = res.<span class="fn">json</span>()
 <!-- FOOTER -->
 <div class="wrap">
   <footer>
-    <div class="fl">Built with 💜 by <strong>Riyam</strong> · Lueur — AI Wellness Companion · 2026</div>
+    <div class="fl">Built with 💜 by <strong>Riyam</strong> · Lueur — AI Wellness Companion · 2026 · <a href="/privacy/" style="color:inherit">Privacy Policy</a></div>
     <div class="fr">Flutter · Django REST · Groq llama-3.1 · Firebase · Railway</div>
   </footer>
 </div>

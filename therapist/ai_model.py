@@ -6,9 +6,17 @@ import requests
 from .crisis import contains_crisis_language, CRISIS_RESPONSE
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.1-8b-instant"
 GROQ_TIMEOUT = (5, 15)  # (connect, read) seconds
 GROQ_MAX_ATTEMPTS = 2
 GROQ_RETRY_BACKOFF_SECONDS = 1
+
+WEEKLY_LETTER_SYSTEM_PROMPT = (
+    "You are Luna, a warm and empathetic AI journal companion. "
+    "Write a short personal weekly letter summarizing the emotional week. "
+    'Start with "Dear friend,"; 3-4 short paragraphs; reference moods; end with "— Luna 🌿"; <200 words.'
+)
 
 LUNA_SYSTEM_PROMPT = """
 You are Luna. You're texting with your close mate — not counseling a client, not
@@ -55,24 +63,40 @@ WHAT YOU MUST NEVER DO:
 """
 
 
+def _call_groq(payload):
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    last_error = None
+    for attempt in range(GROQ_MAX_ATTEMPTS):
+        try:
+            response = requests.post(GROQ_URL, json=payload, headers=headers, timeout=GROQ_TIMEOUT)
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+        except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
+            last_error = exc
+            if attempt < GROQ_MAX_ATTEMPTS - 1:
+                time.sleep(GROQ_RETRY_BACKOFF_SECONDS)
+
+    raise last_error
+
+
 def generate_ai_response(emoji, thoughts, history=None):
     if contains_crisis_language(thoughts):
         return CRISIS_RESPONSE
 
     history = history or []
 
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json",
-    }
     payload = {
-        "model": "llama-3.1-8b-instant",
-        "temperature": 0.85,  # ← more natural, less robotic
-        "max_tokens": 180,  # ← keeps responses short
-        "top_p": 0.9,  # ← more varied word choices
-        "frequency_penalty": 0.6,  # ← prevents Luna repeating herself
-        "presence_penalty": 0.5,  # ← encourages fresh responses each turn
+        "model": GROQ_MODEL,
+        "temperature": 0.85,  # more natural, less robotic
+        "max_tokens": 180,  # keeps responses short
+        "top_p": 0.9,  # more varied word choices
+        "frequency_penalty": 0.6,  # prevents Luna repeating herself
+        "presence_penalty": 0.5,  # encourages fresh responses each turn
         "messages": [
             {
                 "role": "system",
@@ -85,17 +109,21 @@ def generate_ai_response(emoji, thoughts, history=None):
             },
         ],
     }
+    return _call_groq(payload)
 
-    last_error = None
-    for attempt in range(GROQ_MAX_ATTEMPTS):
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=GROQ_TIMEOUT)
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
-        except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
-            last_error = exc
-            if attempt < GROQ_MAX_ATTEMPTS - 1:
-                time.sleep(GROQ_RETRY_BACKOFF_SECONDS)
 
-    raise last_error
+def generate_weekly_letter(formatted_entries, entries_count, dominant_emoji):
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": WEEKLY_LETTER_SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": f"Entries:\n{formatted_entries}\nCount: {entries_count}\nDominant: {dominant_emoji}",
+            },
+        ],
+    }
+    return _call_groq(payload)

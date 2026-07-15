@@ -194,9 +194,12 @@ class TherapistAuthIsolationTests(TestCase):
         self.assertFalse(response.data["crisis_flagged"])
         mock_generate.assert_called_once()
 
-    @patch("therapist.views.http_requests.post")
+    @patch("therapist.ai_model.requests.post")
     def test_weekly_letter_scopes_to_authenticated_user(self, mock_post):
         class MockResponse:
+            def raise_for_status(self):
+                pass
+
             def json(self):
                 return {"choices": [{"message": {"content": "Weekly letter"}}]}
 
@@ -238,3 +241,36 @@ class TherapistAuthIsolationTests(TestCase):
         self.assertEqual(response.data["stats"]["dominant_emoji"], "😊")
         self.assertEqual(response.data["letter"], "Weekly letter")
         self.assertTrue(mock_post.called)
+
+    @patch("therapist.views.generate_weekly_letter")
+    def test_weekly_letter_redacts_crisis_entries_before_sending_to_groq(
+        self, mock_generate_letter
+    ):
+        mock_generate_letter.return_value = "Weekly letter"
+
+        from accounts.models import User
+
+        user_a = User.objects.create(
+            email="user-crisis@example.com", firebase_uid="user-crisis", username="user-crisis"
+        )
+        MoodEntry.objects.create(
+            user_id=str(user_a.id),
+            emoji="😔",
+            thoughts="I want to kill myself",
+            ai_response="AI response",
+        )
+        MoodEntry.objects.create(
+            user_id=str(user_a.id),
+            emoji="😊",
+            thoughts="had a good day",
+            ai_response="AI response",
+        )
+
+        response = self.client.get(
+            "/api/companion/weekly-letter/", **_auth_header("user-crisis")
+        )
+        self.assertEqual(response.status_code, 200)
+        formatted_entries_sent = mock_generate_letter.call_args[0][0]
+        self.assertNotIn("kill myself", formatted_entries_sent)
+        self.assertIn("(a difficult moment)", formatted_entries_sent)
+        self.assertIn("had a good day", formatted_entries_sent)

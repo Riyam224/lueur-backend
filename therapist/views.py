@@ -7,14 +7,12 @@ from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiResponse,
 )
-from .ai_model import generate_ai_response
+from .ai_model import generate_ai_response, generate_weekly_letter
 from .crisis import contains_crisis_language, CRISIS_RESPONSE
 from .serializers import MoodEntrySerializer, MoodEntryCreateSerializer
 from datetime import timedelta
-from django.conf import settings
 from django.utils import timezone
 from .models import MoodEntry
-import requests as http_requests
 from rest_framework.throttling import ScopedRateThrottle
 
 
@@ -98,7 +96,7 @@ The entry is automatically saved to your journal history.
 
         emoji = input_serializer.validated_data["emoji"]
         thoughts = input_serializer.validated_data["thoughts"]
-        history = input_serializer.validated_data.get("history", [])[-10:]  # ← new
+        history = input_serializer.validated_data.get("history", [])[-10:]
 
         if contains_crisis_language(thoughts):
             entry = MoodEntry.objects.create(
@@ -112,7 +110,7 @@ The entry is automatically saved to your journal history.
             return Response(data, status=status.HTTP_200_OK)
 
         try:
-            ai_reply = generate_ai_response(emoji, thoughts, history)  # ← pass history
+            ai_reply = generate_ai_response(emoji, thoughts, history)
         except Exception as e:
             print(f"GROQ AI error: {e}")
             ai_reply = "Luna is taking a little break right now. Please try again in a moment 🌿"
@@ -237,7 +235,8 @@ class WeeklyLetterAPIView(APIView):
 
         formatted_entries = "\n".join(
             [
-                f"- {e.created_at.strftime('%A')}: felt {e.emoji}, wrote: '{e.thoughts[:100]}'"
+                f"- {e.created_at.strftime('%A')}: felt {e.emoji}, wrote: "
+                f"'{e.thoughts[:100] if not contains_crisis_language(e.thoughts) else '(a difficult moment)'}'"
                 for e in entries
             ]
         )
@@ -245,38 +244,8 @@ class WeeklyLetterAPIView(APIView):
         emoji_list = [e.emoji for e in entries]
         dominant_emoji = max(set(emoji_list), key=emoji_list.count)
 
-        groq_api_key = getattr(settings, "GROQ_API_KEY", None)
-        headers = {
-            "Authorization": f"Bearer {groq_api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are Luna, a warm and empathetic AI journal companion. "
-                        "Write a short personal weekly letter summarizing the emotional week. "
-                        'Start with "Dear friend,"; 3-4 short paragraphs; reference moods; end with "— Luna 🌿"; <200 words.'
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": f"Entries:\n{formatted_entries}\nCount: {entries_count}\nDominant: {dominant_emoji}",
-                },
-            ],
-        }
-
         try:
-            groq_response = http_requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                json=payload,
-                headers=headers,
-                timeout=10,
-            )
-            response = groq_response.json()
-            letter_content = response["choices"][0]["message"]["content"]
+            letter_content = generate_weekly_letter(formatted_entries, entries_count, dominant_emoji)
         except Exception as e:
             letter_content = None
             print(f"Error generating weekly letter: {e}")
