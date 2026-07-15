@@ -273,7 +273,7 @@ or, on failure:
 
 **GET / PATCH `/api/accounts/me/`** — `GET` returns the authenticated user's profile; `PATCH` updates only `full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`. Any other field in the payload (`firebase_uid`, `email`, `username`, `is_staff`, ...) is silently ignored.
 
-**DELETE `/api/accounts/delete-account/`** — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then the local Django row. If the Firebase-side call fails, the request returns `502` and the local row is **not** deleted (no orphaned Firebase identity, retryable). Does **not** cascade into `therapist.MoodEntry` (no FK link between the two apps today).
+**DELETE `/api/accounts/delete-account/`** — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then all matching `therapist.MoodEntry` rows, then the local Django row. If the Firebase-side call fails, the request returns `502` and nothing else is deleted (no orphaned Firebase identity, retryable).
 
 ---
 

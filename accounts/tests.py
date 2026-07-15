@@ -3,6 +3,8 @@ from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from therapist.models import MoodEntry
+
 from .models import User
 
 
@@ -116,15 +118,35 @@ class DeleteAccountTests(TestCase):
         self.assertFalse(User.objects.filter(firebase_uid="alice").exists())
 
     @patch("accounts.views.firebase_auth_admin.delete_user")
+    def test_delete_account_removes_mood_entries(self, mock_delete):
+        alice = User.objects.get(firebase_uid="alice")
+        MoodEntry.objects.create(
+            user_id=str(alice.id), emoji="😊", thoughts="entry", ai_response="ok"
+        )
+        MoodEntry.objects.create(
+            user_id=str(alice.id), emoji="😔", thoughts="entry two", ai_response="ok"
+        )
+        response = self.client.delete(
+            "/api/accounts/delete-account/", **self.auth_header
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MoodEntry.objects.filter(user_id=str(alice.id)).count(), 0)
+
+    @patch("accounts.views.firebase_auth_admin.delete_user")
     def test_delete_account_firebase_failure_returns_error_and_keeps_local_row(
         self, mock_delete
     ):
+        alice = User.objects.get(firebase_uid="alice")
+        MoodEntry.objects.create(
+            user_id=str(alice.id), emoji="😊", thoughts="entry", ai_response="ok"
+        )
         mock_delete.side_effect = Exception("network error")
         response = self.client.delete(
             "/api/accounts/delete-account/", **self.auth_header
         )
         self.assertEqual(response.status_code, 502)
         self.assertTrue(User.objects.filter(firebase_uid="alice").exists())
+        self.assertEqual(MoodEntry.objects.filter(user_id=str(alice.id)).count(), 1)
 
     def test_unauthenticated_deletion_rejected(self):
         response = self.client.delete("/api/accounts/delete-account/")

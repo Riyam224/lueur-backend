@@ -362,7 +362,7 @@ ai_therapist_backend/
 5. `ALLOWED_HOSTS = ["*"]` — too permissive for production
 6. `MoodEntry` rows created before the Firebase migration (under the old client-supplied `user_id` scheme) are permanently inaccessible — not linked to any `accounts.User`; documented tradeoff, not a bug
 7. Pre-Firebase `accounts.User` rows (created back when SimpleJWT existed) have `firebase_uid = NULL` and are not automatically linked to a Firebase identity — out of scope for this migration
-8. Account deletion does not cascade into `therapist.MoodEntry` — there's no FK link between the two today
+8. Account deletion deletes matching `therapist.MoodEntry` rows by `user_id` in `DeleteAccountView` — there's no FK link between the two apps, so this is an explicit query-and-delete, not a database-level cascade
 
 ## Deployment Checklist
 

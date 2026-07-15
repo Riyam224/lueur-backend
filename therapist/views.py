@@ -180,6 +180,34 @@ Each entry contains:
         return Response(MoodEntrySerializer(entries, many=True).data)
 
 
+def calculate_streak(user_id, now=None):
+    now = now or timezone.now()
+    today = timezone.localtime(now).date()
+
+    dates = sorted(
+        {
+            timezone.localtime(dt).date()
+            for dt in MoodEntry.objects.filter(user_id=str(user_id)).values_list(
+                "created_at", flat=True
+            )
+        },
+        reverse=True,
+    )
+    if not dates:
+        return 0
+    if (today - dates[0]).days > 1:
+        return 0
+
+    streak, cursor = 0, dates[0]
+    for d in dates:
+        if d == cursor:
+            streak += 1
+            cursor -= timedelta(days=1)
+        elif d < cursor:
+            break
+    return streak
+
+
 class WeeklyLetterAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -259,7 +287,7 @@ class WeeklyLetterAPIView(APIView):
                 "stats": {
                     "entry_count": entries_count,
                     "dominant_emoji": dominant_emoji,
-                    "streak": entries_count,
+                    "streak": calculate_streak(user_id),
                     "week_start": week_start.strftime("%Y-%m-%d"),
                     "week_end": week_end.strftime("%Y-%m-%d"),
                 },

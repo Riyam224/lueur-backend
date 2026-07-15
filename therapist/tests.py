@@ -1,10 +1,13 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from .crisis import contains_crisis_language
 from .models import MoodEntry
+from .views import calculate_streak
 
 
 def _auth_header(uid):
@@ -27,6 +30,49 @@ class CrisisDetectionUnitTests(TestCase):
     def test_empty_input_not_flagged(self):
         self.assertFalse(contains_crisis_language(""))
         self.assertFalse(contains_crisis_language(None))
+
+
+class CalculateStreakTests(TestCase):
+    def _entry_on(self, user_id, days_ago, now):
+        e = MoodEntry.objects.create(
+            user_id=str(user_id), emoji="😊", thoughts="entry", ai_response="ok"
+        )
+        MoodEntry.objects.filter(id=e.id).update(created_at=now - timedelta(days=days_ago))
+        return e
+
+    def test_no_entries_returns_zero(self):
+        self.assertEqual(calculate_streak("no-such-user"), 0)
+
+    def test_consecutive_days_counts_correctly(self):
+        now = timezone.now()
+        for d in [0, 1, 2]:
+            self._entry_on("user-x", d, now)
+        self.assertEqual(calculate_streak("user-x", now=now), 3)
+
+    def test_gap_breaks_streak_at_the_gap(self):
+        now = timezone.now()
+        for d in [0, 1, 2, 4, 5]:
+            self._entry_on("user-y", d, now)
+        self.assertEqual(calculate_streak("user-y", now=now), 3)
+
+    def test_same_day_duplicate_entries_count_once(self):
+        now = timezone.now()
+        self._entry_on("user-z", 0, now)
+        self._entry_on("user-z", 0, now)
+        self._entry_on("user-z", 1, now)
+        self.assertEqual(calculate_streak("user-z", now=now), 2)
+
+    def test_missed_today_but_active_yesterday_still_counts(self):
+        now = timezone.now()
+        for d in [1, 2, 3]:
+            self._entry_on("user-w", d, now)
+        self.assertEqual(calculate_streak("user-w", now=now), 3)
+
+    def test_missed_more_than_one_day_resets_to_zero(self):
+        now = timezone.now()
+        for d in [3, 4, 5]:
+            self._entry_on("user-v", d, now)
+        self.assertEqual(calculate_streak("user-v", now=now), 0)
 
 
 class TherapistAuthIsolationTests(TestCase):

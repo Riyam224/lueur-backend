@@ -7,6 +7,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from therapist.models import MoodEntry
+
 from .models import User
 from .serializers import (
     UserProfileUpdateSerializer,
@@ -89,6 +91,7 @@ class DeleteAccountView(APIView):
                     ),
                     status=status.HTTP_502_BAD_GATEWAY,
                 )
+        MoodEntry.objects.filter(user_id=str(user.id)).delete()
         user.delete()
         return Response(success_response("Account deleted permanently."))
 
