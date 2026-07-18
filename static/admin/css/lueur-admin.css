@@ -1,0 +1,80 @@
+/* Lueur brand theme for the Jazzmin admin — lavender + mint accents. */
+
+:root,
+[data-bs-theme="light"],
+[data-bs-theme="dark"] {
+    --lueur-lavender: #C8B4F8;
+    --lueur-lavender-dark: #9B7FE0;
+    --lueur-mint: #5BBFA0;
+    --lueur-mint-dark: #3F9A80;
+
+    --bs-primary: var(--lueur-lavender);
+    --bs-primary-rgb: 200, 180, 248;
+    --bs-success: var(--lueur-mint);
+    --bs-success-rgb: 91, 191, 160;
+    --bs-link-color: var(--lueur-lavender-dark);
+    --bs-link-hover-color: var(--lueur-lavender);
+}
+
+/* Buttons and badges on the light lavender need a dark foreground for contrast */
+.btn-primary,
+.badge.bg-primary,
+.btn-primary:hover {
+    color: #2b2140 !important;
+}
+
+/* Sidebar: keep the dark AdminLTE backdrop, accent the brand + active item */
+.app-sidebar .brand-link .brand-text,
+.app-sidebar .sidebar-brand .brand-text {
+    color: var(--lueur-lavender);
+}
+
+.app-sidebar .nav-sidebar > .nav-item > .nav-link.active,
+.app-sidebar .nav-link.active {
+    background-color: var(--lueur-lavender-dark);
+    color: #fff;
+}
+
+.app-sidebar .nav-link:hover {
+    color: var(--lueur-lavender);
+}
+
+/* Stat cards on the dashboard index page */
+.lueur-stat-card {
+    border: none;
+    border-radius: 0.5rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.lueur-stat-card .lueur-stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.lueur-stat-card .lueur-stat-label {
+    font-size: 0.8rem;
+    opacity: 0.9;
+}
+
+.lueur-stat-card .lueur-stat-icon {
+    font-size: 1.75rem;
+    opacity: 0.85;
+}
+
+.lueur-stat-card--lavender {
+    background-color: var(--lueur-lavender-dark);
+}
+
+.lueur-stat-card--mint {
+    background-color: var(--lueur-mint-dark);
+}
+
+.lueur-stat-card--warn {
+    background-color: #e0a94a;
+}

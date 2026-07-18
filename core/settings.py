@@ -61,9 +61,20 @@ JAZZMIN_SETTINGS = {
     "site_brand": "Lueur Admin",
     "welcome_sign": "Welcome to the Lueur Admin dashboard",
     "copyright": "Lueur",
+    "custom_css": "admin/css/lueur-admin.css",
+    "icons": {
+        "auth": "fas fa-user-shield",
+        "auth.Group": "fas fa-users",
+        "accounts": "fas fa-user-circle",
+        "accounts.User": "fas fa-user",
+        "therapist": "fas fa-book-open",
+        "therapist.MoodEntry": "fas fa-comment-dots",
+    },
 }
 JAZZMIN_UI_TWEAKS = {
     "theme": "flatly",
+    "sidebar": "sidebar-dark-primary",
+    "navbar": "navbar-white navbar-light",
 }
 
 # -----------------------------------------------------
@@ -139,6 +150,7 @@ USE_TZ = True
 # -----------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",

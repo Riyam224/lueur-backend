@@ -1,65 +1,71 @@
 {% extends "admin/base_site.html" %}
 {% load i18n static dashboard_tags %}
 
-{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static "admin/css/dashboard.css" %}">{% endblock %}
-
 {% block bodyclass %}{{ block.super }} dashboard{% endblock %}
 
 {% block nav-breadcrumbs %}{% endblock %}
 
 {% block content %}
-<div class="col-md-8">
+<div class="col-12">
   <div id="content-main">
     {% admin_dashboard_summary as dashboard %}
-    <div class="module" id="dashboard-summary-module">
-      <table>
-        <caption>
-          <a href="#" class="section" title="{% translate 'Overview' %}">{% translate "Overview" %}</a>
-        </caption>
-        <tbody>
-          <tr><th scope="row">{% translate "Active users" %}</th><td>{{ dashboard.active_users }}</td></tr>
-          <tr><th scope="row">{% translate "Entries (last 7 days)" %}</th><td>{{ dashboard.entries_last_7_days }}</td></tr>
-          <tr><th scope="row">{% translate "Entries (last 30 days)" %}</th><td>{{ dashboard.entries_last_30_days }}</td></tr>
-          <tr><th scope="row">{% translate "Crisis-flagged entries (last 7 days)" %}</th><td>{{ dashboard.crisis_flagged_last_7_days }}</td></tr>
-          <tr><th scope="row">{% translate "Crisis-flagged entries (last 30 days)" %}</th><td>{{ dashboard.crisis_flagged_last_30_days }}</td></tr>
-          <tr><th scope="row">{% translate "Average check-in streak" %}</th><td>{{ dashboard.average_streak }}</td></tr>
-        </tbody>
-      </table>
+    <div class="row" id="dashboard-summary-module">
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="lueur-stat-card lueur-stat-card--lavender">
+          <div>
+            <div class="lueur-stat-value">{{ dashboard.active_users }}</div>
+            <div class="lueur-stat-label">{% translate "Active users" %}</div>
+          </div>
+          <i class="fas fa-user-circle lueur-stat-icon"></i>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="lueur-stat-card lueur-stat-card--mint">
+          <div>
+            <div class="lueur-stat-value">{{ dashboard.entries_last_7_days }}</div>
+            <div class="lueur-stat-label">{% translate "Entries (7 days)" %}</div>
+          </div>
+          <i class="fas fa-book-open lueur-stat-icon"></i>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="lueur-stat-card lueur-stat-card--mint">
+          <div>
+            <div class="lueur-stat-value">{{ dashboard.entries_last_30_days }}</div>
+            <div class="lueur-stat-label">{% translate "Entries (30 days)" %}</div>
+          </div>
+          <i class="fas fa-calendar-alt lueur-stat-icon"></i>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="lueur-stat-card lueur-stat-card--warn">
+          <div>
+            <div class="lueur-stat-value">{{ dashboard.crisis_flagged_last_7_days }}</div>
+            <div class="lueur-stat-label">{% translate "Crisis-flagged (7 days)" %}</div>
+          </div>
+          <i class="fas fa-triangle-exclamation lueur-stat-icon"></i>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="lueur-stat-card lueur-stat-card--warn">
+          <div>
+            <div class="lueur-stat-value">{{ dashboard.crisis_flagged_last_30_days }}</div>
+            <div class="lueur-stat-label">{% translate "Crisis-flagged (30 days)" %}</div>
+          </div>
+          <i class="fas fa-triangle-exclamation lueur-stat-icon"></i>
+        </div>
+      </div>
+      <div class="col-6 col-md-4 col-lg-2">
+        <div class="lueur-stat-card lueur-stat-card--lavender">
+          <div>
+            <div class="lueur-stat-value">{{ dashboard.average_streak }}</div>
+            <div class="lueur-stat-label">{% translate "Avg. check-in streak" %}</div>
+          </div>
+          <i class="fas fa-fire lueur-stat-icon"></i>
+        </div>
+      </div>
     </div>
     {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
-  </div>
-</div>
-
-<div class="col-md-4">
-  <div id="content-related">
-    <div class="module" id="recent-actions-module">
-        <h2>{% translate 'Recent actions' %}</h2>
-        <h3>{% translate 'My actions' %}</h3>
-            {% load log %}
-            {% get_admin_log 10 as admin_log for_user user %}
-            {% if not admin_log %}
-            <p>{% translate 'None available' %}</p>
-            {% else %}
-            <ul class="actionlist">
-            {% for entry in admin_log %}
-            <li class="{% if entry.is_addition %}addlink{% endif %}{% if entry.is_change %}changelink{% endif %}{% if entry.is_deletion %}deletelink{% endif %}">
-                <span class="visually-hidden">{% if entry.is_addition %}{% translate 'Added:' %}{% elif entry.is_change %}{% translate 'Changed:' %}{% elif entry.is_deletion %}{% translate 'Deleted:' %}{% endif %}</span>
-                {% if entry.is_deletion or not entry.get_admin_url %}
-                    {{ entry.object_repr }}
-                {% else %}
-                    <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
-                {% endif %}
-                <br>
-                {% if entry.content_type %}
-                    <span class="mini quiet">{% filter capfirst %}{{ entry.content_type.name }}{% endfilter %}</span>
-                {% else %}
-                    <span class="mini quiet">{% translate 'Unknown content' %}</span>
-                {% endif %}
-            </li>
-            {% endfor %}
-            </ul>
-            {% endif %}
-    </div>
   </div>
 </div>
 {% endblock %}
