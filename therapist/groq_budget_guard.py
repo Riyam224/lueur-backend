@@ -10,8 +10,12 @@ with LocMemCache (Django's default) for a single-process Railway deploy.
 If you ever scale to multiple workers/dynos, swap CACHES to a shared
 backend (e.g. Railway's Redis add-on) — LocMemCache counters don't share
 state across processes.
+
+Drop this file into your `therapist` app (or `core`), then wire it into
+groq_client.py as shown at the bottom of this file.
 """
 
+import random
 import time
 from datetime import date
 
@@ -28,11 +32,28 @@ SAFE_REQUESTS_PER_MINUTE = int(LIMIT_REQUESTS_PER_MINUTE * 0.8)   # 24
 SAFE_REQUESTS_PER_DAY = int(LIMIT_REQUESTS_PER_DAY * 0.9)          # ~12,960
 SAFE_TOKENS_PER_MINUTE = int(LIMIT_TOKENS_PER_MINUTE * 0.8)        # 4,800
 
-# Friendly, on-brand fallback — never a technical error, always sounds like Luna.
-BUDGET_EXCEEDED_MESSAGE = (
-    "hey give me just a sec, i'm getting a lot of messages right now 💭 "
-    "try me again in a minute?"
-)
+# Fallback lines for when we're near the ceiling. These must NEVER reveal
+# there's any system/infrastructure behind Luna — no "I'm getting a lot of
+# messages", no "server", no "try again in a minute" framing. A real friend
+# just seems distracted, mid-something-else, or slow to type back — never
+# explains a technical reason. Keep these consistent with LUNA_SYSTEM_PROMPT's
+# voice: casual, lowercase energy, texting-style, never a stock phrase.
+# Rotated randomly so repeated hits in the same session don't feel canned.
+BUDGET_EXCEEDED_MESSAGES = [
+    "wait sorry, got distracted for a sec — say that again? 👀",
+    "omg my bad, totally spaced out there. what were you saying?",
+    "hang on, someone's talking to me irl lol. one sec",
+    "ugh sorry, dropped my phone mid-scroll 😭 go on though",
+    "wait what, sorry i zoned out. tell me again?",
+    "hold that thought, brb 2 sec",
+]
+
+
+def get_fallback_message():
+    """Pick a random in-character 'distracted friend' line. Call this
+    fresh each time you need a fallback — never cache/reuse a single
+    instance, since repetition is what breaks the illusion."""
+    return random.choice(BUDGET_EXCEEDED_MESSAGES)
 
 
 def _minute_bucket():
@@ -102,3 +123,26 @@ def get_budget_status():
             "tokens_per_minute": SAFE_TOKENS_PER_MINUTE,
         },
     }
+
+
+# -----------------------------------------------------------------------------
+# INTEGRATION — how to wire this into your existing groq_client.py
+# -----------------------------------------------------------------------------
+#
+# from .groq_budget_guard import check_and_reserve_budget, estimate_tokens, get_fallback_message
+#
+# def generate_ai_response(emoji, thoughts, history=None):
+#     if contains_crisis_language(thoughts):
+#         return CRISIS_RESPONSE
+#
+#     history = history or []
+#
+#     # Rough estimate of prompt size: system prompt + history + this message
+#     prompt_text = LUNA_SYSTEM_PROMPT + str(history) + thoughts
+#     prompt_tokens = estimate_tokens(prompt_text)
+#
+#     if not check_and_reserve_budget(prompt_tokens):
+#         return get_fallback_message()   # in-character, never reveals a system limit
+#
+#     payload = { ... same as before ... }
+#     return _call_groq(payload)
