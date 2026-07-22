@@ -1,10 +1,19 @@
+import hashlib
 import os
 import time
 
 import requests
+from django.core.cache import cache
 
 from .crisis import contains_crisis_language, CRISIS_RESPONSE
-from .groq_budget_guard import check_and_reserve_budget, estimate_tokens, get_fallback_message
+from .groq_budget_guard import (
+    check_and_reserve_budget_with_retry,
+    estimate_tokens,
+    get_fallback_message,
+)
+
+WEEKLY_LETTER_CACHE_TIMEOUT = 60 * 60 * 24  # 24 hours
+HISTORY_WINDOW = 8
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -89,9 +98,10 @@ def generate_ai_response(emoji, thoughts, history=None):
     if contains_crisis_language(thoughts):
         return CRISIS_RESPONSE
 
-    history = history or []
+    history = (history or [])[-HISTORY_WINDOW:]
 
-    if not check_and_reserve_budget(estimate_tokens(LUNA_SYSTEM_PROMPT + str(history) + thoughts)):
+    prompt_tokens = estimate_tokens(LUNA_SYSTEM_PROMPT + str(history) + thoughts)
+    if not check_and_reserve_budget_with_retry(prompt_tokens):
         return get_fallback_message()
 
     payload = {
@@ -116,7 +126,17 @@ def generate_ai_response(emoji, thoughts, history=None):
     return _call_groq(payload)
 
 
+def _weekly_letter_cache_key(formatted_entries, entries_count, dominant_emoji):
+    raw = f"{formatted_entries}|{entries_count}|{dominant_emoji}".encode()
+    return "groq:weekly_letter:" + hashlib.sha256(raw).hexdigest()
+
+
 def generate_weekly_letter(formatted_entries, entries_count, dominant_emoji):
+    cache_key = _weekly_letter_cache_key(formatted_entries, entries_count, dominant_emoji)
+    cached_letter = cache.get(cache_key)
+    if cached_letter is not None:
+        return cached_letter
+
     payload = {
         "model": GROQ_MODEL,
         "messages": [
@@ -130,4 +150,6 @@ def generate_weekly_letter(formatted_entries, entries_count, dominant_emoji):
             },
         ],
     }
-    return _call_groq(payload)
+    letter = _call_groq(payload)
+    cache.set(cache_key, letter, timeout=WEEKLY_LETTER_CACHE_TIMEOUT)
+    return letter

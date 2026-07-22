@@ -1,12 +1,15 @@
+import time
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from .admin import MoodEntryAdmin
 from .crisis import contains_crisis_language
+from .groq_budget_guard import BUDGET_EXCEEDED_MESSAGES, check_and_reserve_budget_with_retry
 from .models import MoodEntry
 from .views import calculate_streak
 
@@ -301,3 +304,81 @@ class MoodEntryAdminConfigTests(TestCase):
         admin_instance = MoodEntryAdmin(MoodEntry, None)
         self.assertLess(len(admin_instance.thoughts_preview(entry)), 200)
         self.assertLess(len(admin_instance.ai_response_preview(entry)), 200)
+
+
+class BudgetGuardRetryTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+
+    def test_returns_true_quickly_under_normal_load(self):
+        start = time.monotonic()
+        result = check_and_reserve_budget_with_retry(estimated_prompt_tokens=50)
+        elapsed = time.monotonic() - start
+        self.assertTrue(result)
+        # An empty cache means the first attempt succeeds — no retry wait involved.
+        self.assertLess(elapsed, 1.0)
+
+    @patch("therapist.groq_budget_guard.check_and_reserve_budget")
+    @patch("therapist.groq_budget_guard.time.sleep")
+    def test_retries_and_succeeds_once_budget_frees_up(self, mock_sleep, mock_check):
+        mock_check.side_effect = [False, False, True]
+        result = check_and_reserve_budget_with_retry(estimated_prompt_tokens=50)
+        self.assertTrue(result)
+        self.assertEqual(mock_check.call_count, 3)
+
+    @patch("therapist.groq_budget_guard.check_and_reserve_budget", return_value=False)
+    @patch("therapist.groq_budget_guard.time.sleep")
+    def test_gives_up_after_max_wait_and_never_returns_true(self, mock_sleep, mock_check):
+        result = check_and_reserve_budget_with_retry(estimated_prompt_tokens=50)
+        self.assertFalse(result)
+        self.assertGreater(mock_check.call_count, 1)
+
+    @patch("therapist.ai_model.check_and_reserve_budget_with_retry", return_value=False)
+    def test_fallback_message_only_reached_when_budget_stays_unavailable(self, mock_retry):
+        from .ai_model import generate_ai_response
+
+        reply = generate_ai_response("😊", "just checking in")
+        self.assertIn(reply, BUDGET_EXCEEDED_MESSAGES)
+        mock_retry.assert_called_once()
+
+    @patch("therapist.ai_model._call_groq")
+    @patch("therapist.ai_model.check_and_reserve_budget_with_retry", return_value=True)
+    def test_groq_called_when_budget_available(self, mock_retry, mock_call_groq):
+        from .ai_model import generate_ai_response
+
+        mock_call_groq.return_value = "Real Luna reply"
+        reply = generate_ai_response("😊", "just checking in")
+        self.assertEqual(reply, "Real Luna reply")
+        mock_call_groq.assert_called_once()
+
+
+class LunaChatThrottleTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.client = APIClient()
+        patcher = patch("core.firebase_auth.auth.verify_id_token")
+        self.mock_verify = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.mock_verify.return_value = {"uid": "throttle-user", "email": "throttle-user@example.com"}
+
+    @patch("therapist.views.generate_ai_response")
+    def test_ninth_request_in_a_burst_is_throttled(self, mock_generate):
+        mock_generate.return_value = "Mocked AI response"
+        auth_header = {"HTTP_AUTHORIZATION": "Bearer faketoken-throttle-user"}
+
+        statuses = []
+        for _ in range(9):
+            response = self.client.post(
+                "/api/companion/generate/",
+                {"emoji": "😊", "thoughts": "hi"},
+                format="json",
+                **auth_header,
+            )
+            statuses.append(response.status_code)
+
+        # luna_chat is capped at 8/min, so the 9th call in the same minute
+        # must be throttled regardless of the looser ai_generate scope.
+        self.assertEqual(statuses[:8], [200] * 8)
+        self.assertEqual(statuses[8], 429)

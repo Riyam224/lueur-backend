@@ -16,13 +16,14 @@ from datetime import timedelta
 from django.utils import timezone
 from .models import MoodEntry
 from rest_framework.throttling import ScopedRateThrottle
+from .throttles import LunaChatRateThrottle
 
 logger = logging.getLogger(__name__)
 
 
 class GenerateResponseAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [ScopedRateThrottle, LunaChatRateThrottle]
     throttle_scope = "ai_generate"
 
     @extend_schema(

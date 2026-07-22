@@ -107,6 +107,28 @@ def check_and_reserve_budget(estimated_prompt_tokens: int, estimated_response_to
     return True
 
 
+def check_and_reserve_budget_with_retry(
+    estimated_prompt_tokens: int,
+    estimated_response_tokens: int = 180,
+    max_wait_seconds: float = 4,
+    retry_interval: float = 1.5,
+) -> bool:
+    """
+    Same contract as check_and_reserve_budget, but rides out momentary
+    bursts instead of failing immediately: rechecks every retry_interval
+    seconds until max_wait_seconds elapses. A request-heavy second that
+    clears up shortly after should resolve silently rather than falling
+    back to the "distracted friend" message.
+    """
+    deadline = time.time() + max_wait_seconds
+    while True:
+        if check_and_reserve_budget(estimated_prompt_tokens, estimated_response_tokens):
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(retry_interval)
+
+
 def get_budget_status():
     """Optional: surface current usage, e.g. for an admin dashboard widget."""
     minute_key = f"groq:reqs:min:{_minute_bucket()}"
@@ -129,7 +151,7 @@ def get_budget_status():
 # INTEGRATION — how to wire this into your existing groq_client.py
 # -----------------------------------------------------------------------------
 #
-# from .groq_budget_guard import check_and_reserve_budget, estimate_tokens, get_fallback_message
+# from .groq_budget_guard import check_and_reserve_budget_with_retry, estimate_tokens, get_fallback_message
 #
 # def generate_ai_response(emoji, thoughts, history=None):
 #     if contains_crisis_language(thoughts):
@@ -141,7 +163,7 @@ def get_budget_status():
 #     prompt_text = LUNA_SYSTEM_PROMPT + str(history) + thoughts
 #     prompt_tokens = estimate_tokens(prompt_text)
 #
-#     if not check_and_reserve_budget(prompt_tokens):
+#     if not check_and_reserve_budget_with_retry(prompt_tokens):
 #         return get_fallback_message()   # in-character, never reveals a system limit
 #
 #     payload = { ... same as before ... }
