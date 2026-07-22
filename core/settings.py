@@ -76,10 +76,10 @@ JAZZMIN_UI_TWEAKS = {
     # (--bs-primary: #e95420, an Ubuntu-orange) — flatly's primary was blue/navy (#2c3e50).
     "theme": "united",
     "sidebar": "sidebar-dark-primary",
-    "navbar": "navbar-dark",
-    # Locks the admin to dark mode permanently — no light/auto toggle, no
+    "navbar": "navbar-white navbar-light",
+    # Locks the admin to light mode permanently — no dark/auto toggle, no
     # following the visitor's OS light/dark preference.
-    "default_theme_mode": "dark",
+    "default_theme_mode": "light",
 }
 
 # -----------------------------------------------------
