@@ -9,23 +9,22 @@
 
 /* ─── Design tokens ─────────────────────────────────────────── */
 :root {
-  --bg:       #07060f;
-  --surface:  #0d0b1a;
-  --card:     #111026;
-  --code:     #090817;
+  --bg:       #170f08;
+  --surface:  #1d140b;
+  --card:     #221808;
+  --code:     #140d07;
 
-  --border:   rgba(130, 110, 255, 0.14);
-  --border-h: rgba(130, 110, 255, 0.32);
+  --border:   rgba(242, 134, 39, 0.14);
+  --border-h: rgba(242, 134, 39, 0.32);
 
-  --p:    #8b78ff;
-  --pb:   #a99dff;
-  --pk:   #ff6eb4;
-  --mint: #00d4a0;
-  --amber:#ffbe4f;
+  --p:    #F28627; /* Tangerine Glow — primary accent */
+  --pb:   #f7a968; /* lighter tangerine — hero gradient text, links, GET badges */
+  --pk:   #F2AE2E; /* Golden Honey — secondary accent, used sparingly */
+  --mint: #6fbf73; /* kept as a functional success/POST-method green, outside the brand palette */
 
-  --text:  #ede9ff;
-  --muted: #6e6890;
-  --dim:   #3a3660;
+  --text:  #f3e7d8; /* warm cream-tinted light text (readable on the dark --bg) */
+  --muted: #b8a890; /* muted warm-gray text for a dark background */
+  --dim:   #4a3423;
 
   --font-body: 'Plus Jakarta Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
@@ -75,7 +74,7 @@ body {
 #cur-ring {
   width: 34px;
   height: 34px;
-  border: 1.5px solid rgba(139, 120, 255, 0.35);
+  border: 1.5px solid rgba(242, 134, 39, 0.35);
   transition: width 0.2s, height 0.2s;
 }
 
@@ -85,8 +84,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(130, 110, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(130, 110, 255, 0.04) 1px, transparent 1px);
+    linear-gradient(rgba(242, 134, 39, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 134, 39, 0.04) 1px, transparent 1px);
   background-size: 56px 56px;
   pointer-events: none;
   z-index: 0;
@@ -102,9 +101,9 @@ body::before {
   animation: blob-float 9s ease-in-out infinite;
 }
 
-.b1 { width: 520px; height: 520px; background: rgba(139, 120, 255, 0.07); top: -120px; left: -100px; }
-.b2 { width: 380px; height: 380px; background: rgba(255, 110, 180, 0.05); bottom: 0;    right: -80px; animation-delay: 3s; }
-.b3 { width: 280px; height: 280px; background: rgba(0, 212, 160, 0.04);   top: 45%;    left: 55%;   animation-delay: 6s; }
+.b1 { width: 520px; height: 520px; background: rgba(242, 134, 39, 0.07); top: -120px; left: -100px; }
+.b2 { width: 380px; height: 380px; background: rgba(242, 174, 46, 0.05); bottom: 0;    right: -80px; animation-delay: 3s; }
+.b3 { width: 280px; height: 280px; background: rgba(111, 191, 115, 0.04);   top: 45%;    left: 55%;   animation-delay: 6s; }
 
 @keyframes blob-float {
   0%, 100% { transform: translate(0, 0); }
@@ -128,9 +127,9 @@ nav {
   right: 0;
   z-index: 100;
   padding: 16px 0;
-  border-bottom: 1px solid rgba(130, 110, 255, 0.07);
+  border-bottom: 1px solid rgba(242, 134, 39, 0.07);
   backdrop-filter: blur(24px);
-  background: rgba(7, 6, 15, 0.75);
+  background: rgba(23, 15, 8, 0.75);
 }
 
 .nav-i {
@@ -165,7 +164,7 @@ nav {
 .nav-v {
   font-family: var(--font-mono);
   font-size: 10px;
-  background: rgba(139, 120, 255, 0.1);
+  background: rgba(242, 134, 39, 0.1);
   border: 1px solid var(--border);
   color: var(--pb);
   padding: 3px 9px;
@@ -190,7 +189,7 @@ nav {
 
 .nl:hover {
   color: var(--text);
-  background: rgba(139, 120, 255, 0.07);
+  background: rgba(242, 134, 39, 0.07);
 }
 
 .nl-cta {
@@ -201,13 +200,13 @@ nav {
   padding: 8px 18px;
   border-radius: var(--radius-sm);
   text-decoration: none;
-  box-shadow: 0 0 22px rgba(139, 120, 255, 0.35);
+  box-shadow: 0 0 22px rgba(242, 134, 39, 0.35);
   transition: transform 0.2s var(--ease-out), box-shadow 0.2s;
 }
 
 .nl-cta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 40px rgba(139, 120, 255, 0.55);
+  box-shadow: 0 0 40px rgba(242, 134, 39, 0.55);
 }
 
 /* ─── Hero ──────────────────────────────────────────────────── */
@@ -236,8 +235,8 @@ nav {
   font-size: 10px;
   font-weight: 500;
   color: var(--mint);
-  background: rgba(0, 212, 160, 0.07);
-  border: 1px solid rgba(0, 212, 160, 0.18);
+  background: rgba(111, 191, 115, 0.07);
+  border: 1px solid rgba(111, 191, 115, 0.18);
   padding: 5px 13px;
   border-radius: 20px;
   margin-bottom: 22px;
@@ -295,13 +294,13 @@ h1 em {
   padding: 13px 22px;
   border-radius: 11px;
   text-decoration: none;
-  box-shadow: 0 0 28px rgba(139, 120, 255, 0.38);
+  box-shadow: 0 0 28px rgba(242, 134, 39, 0.38);
   transition: transform 0.2s var(--ease-out), box-shadow 0.2s;
 }
 
 .btn-p:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 48px rgba(139, 120, 255, 0.58);
+  box-shadow: 0 0 48px rgba(242, 134, 39, 0.58);
 }
 
 .btn-s {
@@ -320,8 +319,8 @@ h1 em {
 }
 
 .btn-s:hover {
-  border-color: rgba(139, 120, 255, 0.38);
-  background: rgba(139, 120, 255, 0.05);
+  border-color: rgba(242, 134, 39, 0.38);
+  background: rgba(242, 134, 39, 0.05);
 }
 
 .stats {
@@ -352,7 +351,7 @@ h1 em {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(139, 120, 255, 0.04);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(242, 134, 39, 0.04);
   animation: card-float 5s ease-in-out infinite;
 }
 
@@ -361,7 +360,7 @@ h1 em {
   align-items: center;
   justify-content: space-between;
   padding: 11px 15px;
-  background: rgba(139, 120, 255, 0.04);
+  background: rgba(242, 134, 39, 0.04);
   border-bottom: 1px solid var(--border);
 }
 
@@ -475,9 +474,9 @@ h2 {
   margin-top: 3px;
 }
 
-.m-post   { background: rgba(0, 212, 160, 0.1);   color: var(--mint); border: 1px solid rgba(0, 212, 160, 0.18); }
-.m-get    { background: rgba(139, 120, 255, 0.1); color: var(--pb);   border: 1px solid rgba(139, 120, 255, 0.18); }
-.m-delete { background: rgba(255, 110, 180, 0.1); color: var(--pk);   border: 1px solid rgba(255, 110, 180, 0.18); }
+.m-post   { background: rgba(111, 191, 115, 0.1);   color: var(--mint); border: 1px solid rgba(111, 191, 115, 0.18); }
+.m-get    { background: rgba(242, 134, 39, 0.1); color: var(--pb);   border: 1px solid rgba(242, 134, 39, 0.18); }
+.m-delete { background: rgba(242, 174, 46, 0.1); color: var(--pk);   border: 1px solid rgba(242, 174, 46, 0.18); }
 
 .ep-path {
   font-family: var(--font-mono);
@@ -510,15 +509,15 @@ h2 {
   color: var(--muted);
 }
 
-.pill-g { color: var(--mint); background: rgba(0, 212, 160, 0.05);   border-color: rgba(0, 212, 160, 0.14); }
-.pill-p { color: var(--pb);   background: rgba(139, 120, 255, 0.05); border-color: rgba(139, 120, 255, 0.14); }
+.pill-g { color: var(--mint); background: rgba(111, 191, 115, 0.05);   border-color: rgba(111, 191, 115, 0.14); }
+.pill-p { color: var(--pb);   background: rgba(242, 134, 39, 0.05); border-color: rgba(242, 134, 39, 0.14); }
 
 .ep-badge {
   font-size: 10px;
   font-weight: 600;
-  background: rgba(255, 110, 180, 0.08);
+  background: rgba(242, 174, 46, 0.08);
   color: var(--pk);
-  border: 1px solid rgba(255, 110, 180, 0.18);
+  border: 1px solid rgba(242, 174, 46, 0.18);
   padding: 4px 10px;
   border-radius: 20px;
   white-space: nowrap;
@@ -558,7 +557,7 @@ h2 {
 
 .fs:hover .fi {
   border-color: var(--p);
-  box-shadow: 0 0 18px rgba(139, 120, 255, 0.22);
+  box-shadow: 0 0 18px rgba(242, 134, 39, 0.22);
   transform: translateY(-3px);
 }
 
@@ -574,7 +573,7 @@ h2 {
 .fa {
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, rgba(139, 120, 255, 0.25), rgba(139, 120, 255, 0.06));
+  background: linear-gradient(90deg, rgba(242, 134, 39, 0.25), rgba(242, 134, 39, 0.06));
   position: relative;
   min-width: 28px;
   margin-top: -30px;
@@ -585,7 +584,7 @@ h2 {
   position: absolute;
   right: -5px;
   top: -9px;
-  color: rgba(139, 120, 255, 0.35);
+  color: rgba(242, 134, 39, 0.35);
   font-size: 16px;
 }
 
@@ -658,7 +657,7 @@ h2 {
   justify-content: space-between;
   padding: 14px 20px;
   border-bottom: 1px solid var(--border);
-  background: rgba(139, 120, 255, 0.04);
+  background: rgba(242, 134, 39, 0.04);
 }
 
 .model-title {
@@ -681,14 +680,14 @@ h2 {
   grid-template-columns: 140px 80px 1fr;
   gap: 16px;
   padding: 10px 20px;
-  border-bottom: 1px solid rgba(139, 120, 255, 0.06);
+  border-bottom: 1px solid rgba(242, 134, 39, 0.06);
   align-items: center;
   transition: background 0.2s;
 }
 
 .mf:last-child { border: none; }
 
-.mf:hover { background: rgba(139, 120, 255, 0.04); }
+.mf:hover { background: rgba(242, 134, 39, 0.04); }
 
 .mf-name {
   font-family: var(--font-mono);
@@ -700,8 +699,8 @@ h2 {
   font-family: var(--font-mono);
   font-size: 10px;
   color: var(--pk);
-  background: rgba(255, 110, 180, 0.08);
-  border: 1px solid rgba(255, 110, 180, 0.15);
+  background: rgba(242, 174, 46, 0.08);
+  border: 1px solid rgba(242, 174, 46, 0.15);
   padding: 2px 7px;
   border-radius: 5px;
   text-align: center;
@@ -731,7 +730,7 @@ h2 {
   width: 360px;
   height: 360px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(139, 120, 255, 0.07) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(242, 134, 39, 0.07) 0%, transparent 70%);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -1083,42 +1082,42 @@ footer {
     </div>
     <div class="feat-g rv">
       <div class="fc">
-        <div class="fc-ico" style="background:rgba(0,212,160,.1)">💙</div>
+        <div class="fc-ico" style="background:rgba(111,191,115,.1)">💙</div>
         <div class="fc-t">Flutter</div>
         <div class="fc-d">Cross-platform mobile app powering Lueur's plant-growth UI, Firebase Auth sign-in, and real-time Luna conversations.</div>
       </div>
       <div class="fc">
-        <div class="fc-ico" style="background:rgba(0,212,160,.1)">🐍</div>
+        <div class="fc-ico" style="background:rgba(111,191,115,.1)">🐍</div>
         <div class="fc-t">Django REST Framework</div>
         <div class="fc-d">Battle-tested Python API framework with automatic serialization, browsable API, and clean URL routing.</div>
       </div>
       <div class="fc">
-        <div class="fc-ico" style="background:rgba(139,120,255,.1)">⚡</div>
+        <div class="fc-ico" style="background:rgba(242,134,39,.1)">⚡</div>
         <div class="fc-t">GROQ — llama 3.1</div>
         <div class="fc-d">Ultra-fast LLM inference using GROQ's LPU chip. 10–20× faster than traditional GPU inference.</div>
       </div>
       <div class="fc">
-        <div class="fc-ico" style="background:rgba(255,110,180,.1)">🚂</div>
+        <div class="fc-ico" style="background:rgba(242,174,46,.1)">🚂</div>
         <div class="fc-t">Railway Deployment</div>
         <div class="fc-d">Auto-deploy from GitHub with environment variables, zero-config HTTPS, and custom domain support.</div>
       </div>
       <div class="fc">
-        <div class="fc-ico" style="background:rgba(255,190,79,.1)">📖</div>
+        <div class="fc-ico" style="background:rgba(242,174,46,.1)">📖</div>
         <div class="fc-t">OpenAPI 3.0 Docs</div>
         <div class="fc-d">Auto-generated Swagger UI + ReDoc documentation with live request testing and schema download.</div>
       </div>
       <div class="fc">
-        <div class="fc-ico" style="background:rgba(0,212,160,.1)">🔒</div>
+        <div class="fc-ico" style="background:rgba(111,191,115,.1)">🔒</div>
         <div class="fc-t">Firebase Auth</div>
         <div class="fc-d">Every endpoint is protected. Flutter clients authenticate via Firebase; the backend verifies ID tokens and derives identity server-side.</div>
       </div>
       <div class="fc">
-        <div class="fc-ico" style="background:rgba(139,120,255,.1)">💾</div>
+        <div class="fc-ico" style="background:rgba(242,134,39,.1)">💾</div>
         <div class="fc-t">Persistent Storage</div>
         <div class="fc-d">Every mood entry is saved to the database. Full journal history with timestamps and unique IDs.</div>
       </div>
       <div class="fc">
-        <div class="fc-ico" style="background:rgba(255,110,180,.1)">🛟</div>
+        <div class="fc-ico" style="background:rgba(242,174,46,.1)">🛟</div>
         <div class="fc-t">Crisis Detection</div>
         <div class="fc-d">Journal text is checked for crisis language before it ever reaches Groq — at both the endpoint and the AI-service layer. Matches short-circuit to a static support response with real hotline numbers.</div>
       </div>
