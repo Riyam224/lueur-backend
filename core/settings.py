@@ -200,8 +200,8 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "user": "60/minute",
-        "ai_generate": "10/minute",
-        "luna_chat": "8/min",
+        "ai_generate": "20/minute",
+        "luna_chat": "20/min",
     },
 }
 # -----------------------------------------------------

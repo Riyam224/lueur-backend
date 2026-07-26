@@ -364,12 +364,12 @@ class LunaChatThrottleTests(TestCase):
         self.mock_verify.return_value = {"uid": "throttle-user", "email": "throttle-user@example.com"}
 
     @patch("therapist.views.generate_ai_response")
-    def test_ninth_request_in_a_burst_is_throttled(self, mock_generate):
+    def test_request_past_the_burst_limit_is_throttled(self, mock_generate):
         mock_generate.return_value = "Mocked AI response"
         auth_header = {"HTTP_AUTHORIZATION": "Bearer faketoken-throttle-user"}
 
         statuses = []
-        for _ in range(9):
+        for _ in range(21):
             response = self.client.post(
                 "/api/companion/generate/",
                 {"emoji": "😊", "thoughts": "hi"},
@@ -378,7 +378,7 @@ class LunaChatThrottleTests(TestCase):
             )
             statuses.append(response.status_code)
 
-        # luna_chat is capped at 8/min, so the 9th call in the same minute
+        # luna_chat is capped at 20/min, so the 21st call in the same minute
         # must be throttled regardless of the looser ai_generate scope.
-        self.assertEqual(statuses[:8], [200] * 8)
-        self.assertEqual(statuses[8], 429)
+        self.assertEqual(statuses[:20], [200] * 20)
+        self.assertEqual(statuses[20], 429)

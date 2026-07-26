@@ -110,7 +110,7 @@ def check_and_reserve_budget(estimated_prompt_tokens: int, estimated_response_to
 def check_and_reserve_budget_with_retry(
     estimated_prompt_tokens: int,
     estimated_response_tokens: int = 180,
-    max_wait_seconds: float = 4,
+    max_wait_seconds: float = 12,
     retry_interval: float = 1.5,
 ) -> bool:
     """
