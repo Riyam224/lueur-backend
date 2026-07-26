@@ -3,8 +3,5 @@
   "build": {
     "builder": "RAILPACK",
     "buildCommand": "python manage.py collectstatic --noinput"
-  },
-  "deploy": {
-    "startCommand": "gunicorn core.wsgi:application --bind 0.0.0.0:$PORT --workers 2"
   }
 }
