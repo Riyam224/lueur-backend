@@ -10,6 +10,7 @@ from drf_spectacular.utils import (
     OpenApiResponse,
 )
 from .ai_model import generate_ai_response, generate_weekly_letter
+from .services import build_weekly_letter_context
 from .crisis import contains_crisis_language, CRISIS_RESPONSE
 from .serializers import MoodEntrySerializer, MoodEntryCreateSerializer
 from datetime import timedelta
@@ -210,7 +211,6 @@ def calculate_streak(user_id, now=None):
             break
     return streak
 
-
 class WeeklyLetterAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -228,29 +228,20 @@ class WeeklyLetterAPIView(APIView):
         week_start = timezone.now() - timedelta(days=7)
         week_end = timezone.now()
 
-        entries = MoodEntry.objects.filter(
-            user_id=user_id, created_at__gte=week_start
-        ).order_by("created_at")
-        entries_count = entries.count()
-
-        if entries_count < 2:
+        context = build_weekly_letter_context(user_id)
+        if context is None:
             return Response(
                 {"letter": None, "reason": "not_enough_entries"}, status=200
             )
 
-        formatted_entries = "\n".join(
-            [
-                f"- {e.created_at.strftime('%A')}: felt {e.emoji}, wrote: "
-                f"'{e.thoughts[:100] if not contains_crisis_language(e.thoughts) else '(a difficult moment)'}'"
-                for e in entries
-            ]
-        )
-
-        emoji_list = [e.emoji for e in entries]
-        dominant_emoji = max(set(emoji_list), key=emoji_list.count)
-
         try:
-            letter_content = generate_weekly_letter(formatted_entries, entries_count, dominant_emoji)
+            # If the nightly cron already warmed this user's cache tonight
+            # with the same entries, this hits cache — no live Groq call.
+            letter_content = generate_weekly_letter(
+                context["formatted_entries"],
+                context["entries_count"],
+                context["dominant_emoji"],
+            )
         except Exception as e:
             letter_content = None
             logger.error("Error generating weekly letter: %s", e)
@@ -259,8 +250,8 @@ class WeeklyLetterAPIView(APIView):
             {
                 "letter": letter_content,
                 "stats": {
-                    "entry_count": entries_count,
-                    "dominant_emoji": dominant_emoji,
+                    "entry_count": context["entries_count"],
+                    "dominant_emoji": context["dominant_emoji"],
                     "streak": calculate_streak(user_id),
                     "week_start": week_start.strftime("%Y-%m-%d"),
                     "week_end": week_end.strftime("%Y-%m-%d"),
