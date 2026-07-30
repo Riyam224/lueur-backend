@@ -2,11 +2,13 @@
 
 A Django REST Framework backend that provides AI-powered emotional support, plus account/profile management. Users share their mood with an emoji and thoughts, and **Luna** (the AI companion) responds with an empathetic, personalised message. All entries are saved per user for history tracking and weekly reflections.
 
-Powered by **Groq API with Llama 3.1 8B Instant** — no local GPU or ML dependencies required.
+Powered by the **Groq API** — no local GPU or ML dependencies required.
 
 Authentication is handled entirely by **Firebase Auth**: the client (e.g. a Flutter app) signs in via Firebase (email/password, Google, Apple), and Django verifies the resulting Firebase ID token on every request — Django never issues, stores, or refreshes its own credentials.
 
-Every journal entry is checked for crisis language **before** it ever reaches an LLM. See [Crisis Detection](#crisis-detection) below.
+Every journal entry is checked for crisis language **before** it ever reaches an LLM, in both English and Arabic. See [Crisis Detection](#crisis-detection) below.
+
+Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user via `preferred_language`, with Arabic replies correctly gender-conjugated based on the user's `gender`. See [Localization](#localization-arabic-support) below.
 
 ---
 
@@ -15,18 +17,20 @@ Every journal entry is checked for crisis language **before** it ever reaches an
 ### Companion (`/api/companion/`)
 
 - **Luna AI responses** — warm, empathetic replies via Groq's fast cloud API, with automatic retry (2 attempts, short backoff) and a graceful fallback message if Groq is unreachable
+- **Bilingual, gender-aware responses** — Luna replies in the user's `preferred_language` (English or Arabic), and Arabic replies are steered to address the user with the correct grammatical gender — see [Localization](#localization-arabic-support)
 - **Multi-turn conversations** — pass conversation history so Luna maintains context across messages
 - **Session detection** — Luna appends `[SESSION_END]` when the user feels resolved; clients use this to close sessions
-- **Crisis detection** — journal text is checked for crisis language *before* any AI call, at both the endpoint and the AI-service layer; a match returns a static support response (with real hotline numbers) and `crisis_flagged: true`, and is redacted before ever appearing in a weekly letter prompt — see [Crisis Detection](#crisis-detection)
+- **Crisis detection** — journal text is checked for crisis language *before* any AI call, in both English and Arabic, at both the endpoint and the AI-service layer; a match returns a static, localized, gender-correct support response (with real hotline info) and `crisis_flagged: true`, and is redacted before ever appearing in a weekly letter prompt — see [Crisis Detection](#crisis-detection)
 - **Mood journal** — every entry (emoji + thoughts + AI reply) is saved per user
-- **Weekly letter** — Luna writes a personal weekly reflection based on recent entries, including a real consecutive-day streak (not just an entry count)
+- **Weekly letter** — Luna writes a personal weekly reflection based on recent entries (in the user's preferred language), including a real consecutive-day streak (not just an entry count)
 - **Per-user data isolation** — every entry is scoped to the authenticated user (`request.user`); no client-supplied identifier is ever accepted
 
 ### Accounts (`/api/accounts/`)
 
 - **Firebase-backed identity** — registration, login, logout, password reset, email verification, Google/Apple sign-in are all handled by Firebase Auth on the client; Django only verifies the resulting ID token
 - **Custom user model** — `accounts.User` (email as `USERNAME_FIELD`), linked to Firebase via a nullable, unique `firebase_uid`, auto-created on first sight of a new Firebase identity
-- **Profile management** — view/update profile (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`); identity-bearing fields (`firebase_uid`, `email`, `username`, staff flags) are never client-writable
+- **Profile management** — view/update profile (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`, `preferred_language`); identity-bearing fields (`firebase_uid`, `email`, `username`, staff flags) are never client-writable
+- **Language preference** — `preferred_language` (`en`/`ar`, `TextChoices`, defaults to `en`) drives which language Luna responds in, everywhere — chat, weekly letter, crisis response, and fallback messages
 - **Account deletion** — deletes the Firebase identity, all of the user's `MoodEntry` rows, then the local Django record; fails closed (nothing deleted) if the Firebase-side call errors. Users who can't open the app can request the same deletion by email — see [Account Deletion](#account-deletion)
 - **Consistent response envelope** — every endpoint returns `{"success": bool, "message": str, "data": {...}}` or `{"success": false, "message": str, "errors": {...}}`
 
@@ -53,7 +57,7 @@ The screenshots below are taken from this branch running locally and reflect the
 | Layer | Technology |
 | --- | --- |
 | Framework | Django 5.1.4 + Django REST Framework 3.17.1 |
-| AI Model | Groq API — `llama-3.1-8b-instant` (cloud) |
+| AI Model | Groq API — `openai/gpt-oss-20b` (cloud) |
 | Auth | Firebase Authentication via `firebase-admin` (server-side ID token verification only) |
 | API Docs | drf-spectacular (Swagger UI + ReDoc) |
 | Database | SQLite (dev) / PostgreSQL (prod recommended) |
@@ -140,7 +144,7 @@ Every endpoint below requires `Authorization: Bearer <firebase-id-token>` **exce
 | Method | Endpoint | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/api/accounts/me/` | Required | Get the authenticated user's profile |
-| PATCH | `/api/accounts/me/` | Required | Update editable profile fields (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`) |
+| PATCH | `/api/accounts/me/` | Required | Update editable profile fields (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`, `preferred_language`) |
 | DELETE | `/api/accounts/delete-account/` | Required | Delete the user's Firebase identity, journal entries, and local account permanently |
 | POST | `/api/accounts/verify/` (alias: `/api/auth/verify/`) | None | Verify a Firebase ID token, auto-creating the linked `accounts.User` on first sight |
 
@@ -186,6 +190,7 @@ Submit a mood entry. Luna responds with an empathetic message that is saved to t
 
 - **`history`**: optional — list of prior `{"role", "content"}` messages for multi-turn context. Only the last 10 items are used.
 - There is no `user_id` field — the entry is always attributed to `request.user`.
+- There is no `preferred_language`/`gender` field either — Luna's reply language and grammatical gender come from the authenticated user's profile (`request.user.preferred_language`, `request.user.gender`), never from the request body. See [Localization](#localization-arabic-support).
 
 **Response (200)**:
 
@@ -209,20 +214,22 @@ When the user feels better or resolved, Luna's `ai_response` will end with `[SES
 { "detail": "Invalid or expired token." }
 ```
 
-If the Groq API is unavailable, the entry is still saved with a fallback message:
-`"Luna is taking a little break right now. Please try again in a moment 🌿"`
+If the Groq API is unavailable, the entry is still saved with a localized fallback message — English: `"Luna is taking a little break right now. Please try again in a moment 🌿"`, Arabic: `"لونا بحاجة إلى دقيقة الآن. حاول مرة أخرى بعد قليل 🌿"`.
 
 ---
 
 ### Crisis Detection
 
-`thoughts` is checked against a crisis-language pattern (`therapist/crisis.py`) **before** `generate_ai_response` is ever called — so Groq never sees crisis text. This runs at two layers for defense in depth: once in `GenerateResponseAPIView` and again inside `ai_model.generate_ai_response()` itself, in case anything else ever calls it directly.
+`thoughts` is checked against **two independent** crisis-language patterns — English (`therapist/crisis.py`) and Arabic (`therapist/crisis_ar.py`) — **before** `generate_ai_response` is ever called, so Groq never sees crisis text. Both detectors run on *every* message regardless of the user's `preferred_language` (someone set to `en` might still type in Arabic, and vice versa); either one matching is enough to trigger the crisis path. This runs at two layers for defense in depth: once in `GenerateResponseAPIView` and again inside `ai_model.generate_ai_response()` itself, in case anything else ever calls it directly.
+
+`therapist/crisis.py` is treated as **frozen** — it is never edited; `crisis_ar.py` is a separate sibling module with its own flat keyword list (200+ MSA phrases covering direct statements, self-harm, indirect/euphemistic expressions, hopelessness, intent, plans, imminence, farewells, and attempts-in-progress), matched the same simple "any substring match = True" way, with no weighting, negation-detection, or third-person/fiction-detection (deliberately deferred — see the module docstring).
 
 A match:
 
 - Skips the Groq call entirely
-- Saves the entry with a static support response (real crisis-line numbers, no AI-generated text)
+- Saves the entry with a static support response — in the user's `preferred_language`, and (for Arabic) grammatically conjugated to the user's `gender` — no AI-generated text
 - Returns `crisis_flagged: true` in the response
+- Logs which language(s) matched (`logger.warning("Crisis language detected (languages=%s) ...")`) for observability
 
 ```json
 {
@@ -270,6 +277,8 @@ Luna writes a personal letter summarising the authenticated user's emotional wee
 Requires at least **2 entries** in the past 7 days; returns `null` with a reason otherwise.
 
 `stats.streak` is a real consecutive-day count (`calculate_streak()` in `therapist/views.py`), not just the number of entries — it walks backward from today (or yesterday, if nothing was logged today) and stops at the first gap. Any crisis-flagged entry in the window is redacted before its text is sent to Groq for the letter itself — see [Crisis Detection](#crisis-detection).
+
+The letter is written in the authenticated user's `preferred_language`. Its Groq-response cache key includes `preferred_language` and `gender`, so a cached English letter can never be served to an Arabic-preferring user (or vice versa) — see [Localization](#localization-arabic-support).
 
 **Response (200)**:
 
@@ -340,6 +349,40 @@ Both paths share one implementation, so there's no risk of the manual path doing
 
 ---
 
+## Localization (Arabic Support)
+
+Luna responds in English or Modern Standard Arabic based on the user's `accounts.User.preferred_language` (`en`/`ar`, `TextChoices`, defaults to `en`, updatable via `PATCH /api/accounts/me/`). Arabic replies are also steered to address the user with the correct grammatical gender, from the existing `accounts.User.gender` field (reused rather than adding a second gender field — `other`/`prefer_not_to_say`/blank all resolve to the masculine form, Modern Standard Arabic's grammatical default for an unspecified audience).
+
+All of this is centralized in **`therapist/luna_prompts.py`** — `LunaPromptProvider` is the single place anything Luna-voiced goes through; nothing else in the codebase branches on `preferred_language`/`gender` directly.
+
+There are two different mechanisms, used for two different kinds of content:
+
+- **Model-steering** (chat system prompt, weekly-letter prompt) — these are instructions *to* the LLM, not literal text shown to the user. `LunaPromptProvider` prepends one of `GENDER_INSTRUCTIONS_AR` (a one-line "address the user in the masculine/feminine/neutral form" instruction) ahead of the Arabic prompt, and lets the model conjugate its own generated reply.
+- **Literal template substitution** (crisis response) — this is fixed, final text sent verbatim to the user. `apply_gender_variant(template, gender)` does a simple regex substitution of `{male_form/female_form}` markers embedded in the Arabic template — no templating engine, easy to audit at a glance.
+
+| Content | English source | Arabic source | Gender handling |
+| --- | --- | --- | --- |
+| Chat system prompt | `LUNA_SYSTEM_PROMPT_EN` | `LUNA_SYSTEM_PROMPT_AR` | Model-steering prepend |
+| Weekly letter prompt | `WEEKLY_LETTER_PROMPT_EN` | `WEEKLY_LETTER_PROMPT_AR` | Model-steering prepend |
+| Groq-error fallback | `GROQ_ERROR_FALLBACK_EN` | `GROQ_ERROR_FALLBACK_AR` | None (no gendered verb in either language's copy) |
+| Budget-guard "distracted friend" lines | `groq_budget_guard.BUDGET_EXCEEDED_MESSAGES` | `groq_budget_guard.BUDGET_EXCEEDED_MESSAGES_AR` | None (deliberately gender-neutral phrasing) |
+| Crisis response | `therapist.crisis.CRISIS_RESPONSE` (frozen, untouched) | `CRISIS_RESPONSE_AR` | `apply_gender_variant()` |
+
+An unrecognized `preferred_language` value never raises — it silently falls back to English and logs a `logger.warning` + a Sentry breadcrumb (a real value reaching there and not matching `en`/`ar` signals a data-integrity issue upstream, not a normal case).
+
+### Preventing unshipped placeholder text from reaching production
+
+Both Arabic content (`luna_prompts.py`) and the Arabic crisis-detection keyword list (`crisis_ar.py`) went through a placeholder phase during development, guarded so they could never accidentally ship:
+
+```bash
+python manage.py check_luna_prompts        # fails if any Arabic prompt is still placeholder text
+python manage.py check_crisis_ar_keywords  # fails if the Arabic crisis keyword list is still placeholder text
+```
+
+`TherapistConfig.ready()` (`therapist/apps.py`) runs both checks automatically at process startup whenever `DEBUG` is off and it isn't a test run — the app refuses to boot in production if either is still a placeholder. Both checks currently pass with real content in place.
+
+---
+
 ## Project Structure
 
 ```text
@@ -355,12 +398,19 @@ lueur-backend/
 │   ├── views.py           # GenerateResponseAPIView, AllHistoryAPIView, WeeklyLetterAPIView, calculate_streak()
 │   ├── serializers.py     # MoodEntrySerializer, MoodEntryCreateSerializer (no user_id field)
 │   ├── ai_model.py        # Groq integration — generate_ai_response(), generate_weekly_letter(), shared _call_groq() retry helper
-│   ├── crisis.py          # contains_crisis_language(), CRISIS_RESPONSE
+│   ├── luna_prompts.py    # LunaPromptProvider — language/gender-aware prompts, apply_gender_variant(), placeholder safety checks
+│   ├── crisis.py          # contains_crisis_language(), CRISIS_RESPONSE — English crisis detection (frozen, never edited)
+│   ├── crisis_ar.py       # contains_crisis_language_ar() — Arabic crisis detection (sibling module, runs alongside crisis.py)
+│   ├── groq_budget_guard.py  # Free-tier rate/token budget guard; get_fallback_message() now bilingual
+│   ├── apps.py            # TherapistConfig.ready() — production boot check for placeholder Arabic content
 │   ├── urls.py            # App URL patterns
+│   ├── management/commands/
+│   │   ├── check_luna_prompts.py       # Fails if any Arabic Luna prompt is still placeholder text
+│   │   └── check_crisis_ar_keywords.py # Fails if the Arabic crisis keyword list is still placeholder text
 │   ├── tests.py
 │   └── migrations/
 ├── accounts/
-│   ├── models.py          # User (AUTH_USER_MODEL, has firebase_uid)
+│   ├── models.py          # User (AUTH_USER_MODEL, has firebase_uid, preferred_language, gender)
 │   ├── managers.py        # UserManager (email-based create_user/create_superuser)
 │   ├── views.py           # MeView, DeleteAccountView, VerifyFirebaseTokenView
 │   ├── services.py        # Response envelope helpers + delete_user_account() (shared by the API and the management command)
@@ -453,9 +503,9 @@ No non-staff account can reach `/admin/` — access is gated by Django's standar
 ## Testing
 
 ```bash
-python manage.py test           # full suite (42 tests)
-python manage.py test therapist # generate/history/weekly-letter, crisis detection, streak calc
-python manage.py test accounts  # profile, delete-account, verify, delete_user_by_email command
+python manage.py test           # full suite (114 tests)
+python manage.py test therapist # generate/history/weekly-letter, bilingual crisis detection, localization/gender, streak calc
+python manage.py test accounts  # profile, preferred_language/gender, delete-account, verify, delete_user_by_email command
 ```
 
 Tests never hit real external services — mock `generate_ai_response()` / `therapist.ai_model.requests.post` for Groq calls, `core.firebase_auth.auth.verify_id_token` for token verification, and `accounts.services.firebase_auth_admin.delete_user` for Firebase account deletion. The `delete_user_by_email` and account-deletion cascade tests hit the real (test) database directly and assert on actual row counts, not just mock call assertions — this matters because a deletion path is exactly the kind of thing you don't want to trust to "the mock was called":
@@ -573,6 +623,6 @@ If you are in crisis, please reach out:
 
 ---
 
-Built with Django REST Framework · Powered by Groq API (Llama 3.1 8B) · Authenticated via Firebase Auth
+Built with Django REST Framework · Powered by Groq API · Authenticated via Firebase Auth · English & Arabic supported
 
-Last Updated: July 17, 2026
+Last Updated: July 30, 2026
