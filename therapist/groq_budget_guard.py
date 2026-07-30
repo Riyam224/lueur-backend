@@ -48,12 +48,27 @@ BUDGET_EXCEEDED_MESSAGES = [
     "hold that thought, brb 2 sec",
 ]
 
+# Arabic equivalents, same "distracted friend" voice. These stay
+# gender-neutral by design (polite/plural-adjacent phrasing) — no
+# gender substitution needed here, unlike the crisis response.
+BUDGET_EXCEEDED_MESSAGES_AR = [
+    "عذراً، انشغلت لحظة — هل يمكنك إعادة ذلك؟ 👀",
+    "آسفة، شردت قليلاً، ماذا كنت تقول؟",
+    "لحظة من فضلك، أحدهم يتحدث معي الآن، سأعود حالاً",
+    "عذراً، سقط الهاتف مني وأنا أستخدمه 😭 أكمل حديثك",
+    "آسف، شردت قليلاً، هل يمكنك التكرار؟",
+    "ابقَ على الفكرة، سأعود خلال ثوانٍ",
+]
 
-def get_fallback_message():
-    """Pick a random in-character 'distracted friend' line. Call this
-    fresh each time you need a fallback — never cache/reuse a single
-    instance, since repetition is what breaks the illusion."""
-    return random.choice(BUDGET_EXCEEDED_MESSAGES)
+
+def get_fallback_message(preferred_language=None):
+    """Pick a random in-character 'distracted friend' line, in the
+    requested language (anything other than 'ar' gets English — same
+    missing/unrecognized-defaults-to-English behavior used elsewhere).
+    Call this fresh each time you need a fallback — never cache/reuse a
+    single instance, since repetition is what breaks the illusion."""
+    messages = BUDGET_EXCEEDED_MESSAGES_AR if preferred_language == "ar" else BUDGET_EXCEEDED_MESSAGES
+    return random.choice(messages)
 
 
 def _minute_bucket():

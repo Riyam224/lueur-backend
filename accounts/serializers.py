@@ -17,6 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
             "bio",
             "date_of_birth",
             "gender",
+            "preferred_language",
             "is_verified",
             "created_at",
             "updated_at",
@@ -27,7 +28,19 @@ class UserSerializer(serializers.ModelSerializer):
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("full_name", "phone_number", "bio", "date_of_birth", "gender")
+        fields = (
+            "full_name",
+            "phone_number",
+            "bio",
+            "date_of_birth",
+            "gender",
+            "preferred_language",
+        )
+        extra_kwargs = {
+            "preferred_language": {
+                "help_text": "UI language preference for the Flutter client. 'en' (English) or 'ar' (Arabic)."
+            }
+        }
 
     def validate_phone_number(self, value):
         try:

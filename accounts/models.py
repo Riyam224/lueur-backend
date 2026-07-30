@@ -11,6 +11,11 @@ class GenderChoices(models.TextChoices):
     PREFER_NOT_TO_SAY = "prefer_not_to_say", "Prefer not to say"
 
 
+class PreferredLanguage(models.TextChoices):
+    ENGLISH = "en", "English"
+    ARABIC = "ar", "العربية"
+
+
 class User(AbstractUser):
     email = models.EmailField(unique=True)
     username = models.CharField(
@@ -25,6 +30,11 @@ class User(AbstractUser):
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(
         max_length=20, choices=GenderChoices.choices, blank=True
+    )
+    preferred_language = models.CharField(
+        max_length=2,
+        choices=PreferredLanguage.choices,
+        default=PreferredLanguage.ENGLISH,
     )
     is_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

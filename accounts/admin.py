@@ -22,10 +22,12 @@ class UserAdmin(admin.ModelAdmin):
         "is_active",
         "is_verified",
         "is_staff",
+        "preferred_language",
+        "gender",
         "created_at",
         "mood_entry_count",
     )
-    list_filter = ("is_active", "is_verified", "is_staff")
+    list_filter = ("is_active", "is_verified", "is_staff", "preferred_language", "gender")
     ordering = ("-created_at",)
     search_fields = ("email", "username")
     readonly_fields = ("mood_entry_count",)

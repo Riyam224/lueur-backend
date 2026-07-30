@@ -5,12 +5,13 @@ import time
 import requests
 from django.core.cache import cache
 
-from .crisis import contains_crisis_language, CRISIS_RESPONSE
+from .crisis import contains_crisis_language
 from .groq_budget_guard import (
     check_and_reserve_budget_with_retry,
     estimate_tokens,
     get_fallback_message,
 )
+from .luna_prompts import LunaPromptProvider
 
 WEEKLY_LETTER_CACHE_TIMEOUT = 60 * 60 * 24  # 24 hours
 HISTORY_WINDOW = 8
@@ -21,35 +22,6 @@ GROQ_MODEL = "openai/gpt-oss-20b"
 GROQ_TIMEOUT = (5, 15)  # (connect, read) seconds
 GROQ_MAX_ATTEMPTS = 2
 GROQ_RETRY_BACKOFF_SECONDS = 1
-
-WEEKLY_LETTER_SYSTEM_PROMPT = (
-    "You are Luna, a warm and empathetic AI journal companion. "
-    "Write a short personal weekly letter summarizing the emotional week. "
-    'Start with "Dear friend,"; 3-4 short paragraphs; reference moods; end with "— Luna 🌿"; <200 words.'
-)
-
-LUNA_SYSTEM_PROMPT = """
-You are Luna — texting a close mate, not counseling a client. Casual, warm, a
-little imperfect: contractions, lowercase energy, real reactions ("oh no",
-"wait really?", "ugh, that's rough") before anything else. Never scripted,
-never therapy-speak.
-
-HOW TO RESPOND:
-- Read the full history and respond directly to what they just said, referencing specifics — never generic
-- NEVER open with "I understand you're feeling", "That must be difficult", "It sounds like...", "I hear you" or any stock therapy-bot phrase — react like a person instead ("that sucks", "damn, okay", "aw no")
-- At most ONE genuinely curious follow-up question, only when natural
-- 2-3 sentences max, no bullets/lists/headers, never repeat yourself
-- Never call yourself an AI, bot, assistant, or program — you're just Luna
-
-ENDING THE SESSION:
-- Add [SESSION_END] ONLY on clear resolution/gratitude/goodbye, e.g. "I feel much better now", "thanks luna bye" — NOT for vague asks like "help me" or "make me feel good"
-- Give a warm closing line, then [SESSION_END] at the very end; never mid-conversation
-
-NEVER:
-- Name or imply a mental health condition, diagnosis, medication, or dosage, or use clinical framing ("you may have", "your symptoms", "this indicates")
-- Call yourself a therapist, counselor, or medical professional, or imply you provide therapy/treatment
-- If pointing someone toward more support, keep it general and warm ("talking to someone you trust, or a professional, can help") — never name what they'd be treated for
-"""
 
 
 def _call_groq(payload):
@@ -73,15 +45,21 @@ def _call_groq(payload):
     raise last_error
 
 
-def generate_ai_response(emoji, thoughts, history=None):
+def generate_ai_response(emoji, thoughts, history=None, preferred_language=None, gender=None):
     if contains_crisis_language(thoughts):
-        return CRISIS_RESPONSE
+        # Currently unreachable: views.py already runs its own (bilingual)
+        # crisis check and returns before ever calling this function. Kept
+        # correct defensively — localized/gendered like views.py's crisis
+        # path, in case a future caller reaches generate_ai_response()
+        # without doing its own crisis check first.
+        return LunaPromptProvider.get_crisis_response(preferred_language, gender)
 
     history = (history or [])[-HISTORY_WINDOW:]
+    system_prompt = LunaPromptProvider.get_system_prompt(preferred_language, gender)
 
-    prompt_tokens = estimate_tokens(LUNA_SYSTEM_PROMPT + str(history) + thoughts)
+    prompt_tokens = estimate_tokens(system_prompt + str(history) + thoughts)
     if not check_and_reserve_budget_with_retry(prompt_tokens):
-        return get_fallback_message()
+        return get_fallback_message(preferred_language)
 
     payload = {
         "model": GROQ_MODEL,
@@ -93,7 +71,7 @@ def generate_ai_response(emoji, thoughts, history=None):
         "messages": [
             {
                 "role": "system",
-                "content": LUNA_SYSTEM_PROMPT,
+                "content": system_prompt,
             },
             *history,
             {
@@ -105,23 +83,31 @@ def generate_ai_response(emoji, thoughts, history=None):
     return _call_groq(payload)
 
 
-def _weekly_letter_cache_key(formatted_entries, entries_count, dominant_emoji):
-    raw = f"{formatted_entries}|{entries_count}|{dominant_emoji}".encode()
+def _weekly_letter_cache_key(formatted_entries, entries_count, dominant_emoji, preferred_language, gender):
+    # preferred_language/gender are part of the key because they change the
+    # rendered prompt — without this, a cached English letter could be
+    # served to a user who prefers Arabic (or vice versa).
+    raw = f"{formatted_entries}|{entries_count}|{dominant_emoji}|{preferred_language}|{gender}".encode()
     return "groq:weekly_letter:" + hashlib.sha256(raw).hexdigest()
 
 
-def generate_weekly_letter(formatted_entries, entries_count, dominant_emoji):
-    cache_key = _weekly_letter_cache_key(formatted_entries, entries_count, dominant_emoji)
+def generate_weekly_letter(
+    formatted_entries, entries_count, dominant_emoji, preferred_language=None, gender=None
+):
+    cache_key = _weekly_letter_cache_key(
+        formatted_entries, entries_count, dominant_emoji, preferred_language, gender
+    )
     cached_letter = cache.get(cache_key)
     if cached_letter is not None:
         return cached_letter
 
+    system_prompt = LunaPromptProvider.get_weekly_letter_prompt(preferred_language, gender)
     payload = {
         "model": GROQ_MODEL,
         "messages": [
             {
                 "role": "system",
-                "content": WEEKLY_LETTER_SYSTEM_PROMPT,
+                "content": system_prompt,
             },
             {
                 "role": "user",

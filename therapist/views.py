@@ -11,7 +11,9 @@ from drf_spectacular.utils import (
 )
 from .ai_model import generate_ai_response, generate_weekly_letter
 from .services import build_weekly_letter_context
-from .crisis import contains_crisis_language, CRISIS_RESPONSE
+from .crisis import contains_crisis_language
+from .crisis_ar import contains_crisis_language_ar
+from .luna_prompts import LunaPromptProvider
 from .serializers import MoodEntrySerializer, MoodEntryCreateSerializer
 from datetime import timedelta
 from django.utils import timezone
@@ -104,22 +106,47 @@ The entry is automatically saved to your journal history.
         thoughts = input_serializer.validated_data["thoughts"]
         history = input_serializer.validated_data.get("history", [])[-10:]
 
+        # Both detectors always run, regardless of preferred_language: a user
+        # set to 'en' may still type in Arabic and vice versa. Each is a
+        # cheap regex over a short keyword list (negligible next to the
+        # network-bound Groq call below), so there's no performance reason
+        # to gate either one on preferred_language.
+        crisis_hit_languages = []
         if contains_crisis_language(thoughts):
+            crisis_hit_languages.append("en")
+        if contains_crisis_language_ar(thoughts):
+            crisis_hit_languages.append("ar")
+
+        if crisis_hit_languages:
+            logger.warning(
+                "Crisis language detected (languages=%s) for user_id=%s",
+                ",".join(crisis_hit_languages),
+                request.user.id,
+            )
+            crisis_response = LunaPromptProvider.get_crisis_response(
+                request.user.preferred_language, request.user.gender
+            )
             entry = MoodEntry.objects.create(
                 user_id=str(request.user.id),
                 emoji=emoji,
                 thoughts=thoughts,
-                ai_response=CRISIS_RESPONSE,
+                ai_response=crisis_response,
                 crisis_flagged=True,
             )
             data = MoodEntrySerializer(entry).data
             return Response(data, status=status.HTTP_200_OK)
 
         try:
-            ai_reply = generate_ai_response(emoji, thoughts, history)
+            ai_reply = generate_ai_response(
+                emoji,
+                thoughts,
+                history,
+                request.user.preferred_language,
+                request.user.gender,
+            )
         except Exception as e:
             logger.error("Groq AI error: %s", e)
-            ai_reply = "Luna is taking a little break right now. Please try again in a moment 🌿"
+            ai_reply = LunaPromptProvider.get_groq_error_fallback(request.user.preferred_language)
 
         entry = MoodEntry.objects.create(
             user_id=str(request.user.id),
@@ -241,6 +268,8 @@ class WeeklyLetterAPIView(APIView):
                 context["formatted_entries"],
                 context["entries_count"],
                 context["dominant_emoji"],
+                request.user.preferred_language,
+                request.user.gender,
             )
         except Exception as e:
             letter_content = None

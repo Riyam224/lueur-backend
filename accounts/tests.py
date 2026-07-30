@@ -84,6 +84,104 @@ class ProfileTests(TestCase):
         self.assertEqual(response.data["data"]["full_name"], "Alice Doe")
         self.assertEqual(response.data["data"]["bio"], "Hi there")
 
+    def test_default_preferred_language_is_english(self):
+        user = User.objects.get(firebase_uid="alice")
+        self.assertEqual(user.preferred_language, "en")
+
+    def test_patch_me_updates_preferred_language(self):
+        response = self.client.patch(
+            "/api/accounts/me/",
+            {"preferred_language": "ar"},
+            format="json",
+            **self.auth_header,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["preferred_language"], "ar")
+        user = User.objects.get(firebase_uid="alice")
+        self.assertEqual(user.preferred_language, "ar")
+
+    def test_patch_me_rejects_invalid_preferred_language(self):
+        response = self.client.patch(
+            "/api/accounts/me/",
+            {"preferred_language": "fr"},
+            format="json",
+            **self.auth_header,
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("preferred_language", response.data["errors"])
+        user = User.objects.get(firebase_uid="alice")
+        self.assertEqual(user.preferred_language, "en")
+
+    def test_patch_me_cannot_update_another_users_preferred_language(self):
+        other_header = _auth_header("bob")
+        with patch("core.firebase_auth.auth.verify_id_token") as mock_verify:
+            mock_verify.return_value = {"uid": "bob", "email": "bob@example.com"}
+            self.client.get("/api/accounts/me/", **other_header)
+
+            response = self.client.patch(
+                "/api/accounts/me/",
+                {"preferred_language": "ar"},
+                format="json",
+                **other_header,
+            )
+        self.assertEqual(response.status_code, 200)
+
+        alice = User.objects.get(firebase_uid="alice")
+        bob = User.objects.get(firebase_uid="bob")
+        self.assertEqual(alice.preferred_language, "en")
+        self.assertEqual(bob.preferred_language, "ar")
+
+    def test_default_gender_is_unset_for_new_users(self):
+        user = User.objects.get(firebase_uid="alice")
+        self.assertEqual(user.gender, "")
+
+    def test_patch_me_updates_gender_to_male_or_female(self):
+        for gender in ("male", "female"):
+            response = self.client.patch(
+                "/api/accounts/me/",
+                {"gender": gender},
+                format="json",
+                **self.auth_header,
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["data"]["gender"], gender)
+            user = User.objects.get(firebase_uid="alice")
+            self.assertEqual(user.gender, gender)
+
+    def test_patch_me_rejects_invalid_gender(self):
+        response = self.client.patch(
+            "/api/accounts/me/",
+            {"gender": "robot"},
+            format="json",
+            **self.auth_header,
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("gender", response.data["errors"])
+        user = User.objects.get(firebase_uid="alice")
+        self.assertEqual(user.gender, "")
+
+    def test_patch_me_cannot_update_another_users_gender(self):
+        other_header = _auth_header("bob-gender")
+        with patch("core.firebase_auth.auth.verify_id_token") as mock_verify:
+            mock_verify.return_value = {
+                "uid": "bob-gender",
+                "email": "bob-gender@example.com",
+            }
+            self.client.get("/api/accounts/me/", **other_header)
+
+            response = self.client.patch(
+                "/api/accounts/me/",
+                {"gender": "male"},
+                format="json",
+                **other_header,
+            )
+        self.assertEqual(response.status_code, 200)
+
+        alice = User.objects.get(firebase_uid="alice")
+        bob = User.objects.get(firebase_uid="bob-gender")
+        self.assertEqual(alice.gender, "")
+        self.assertEqual(bob.gender, "male")
+
     def test_patch_me_ignores_identity_fields(self):
         response = self.client.patch(
             "/api/accounts/me/",
@@ -286,6 +384,7 @@ class UserAdminConfigTests(TestCase):
         self.assertIn("is_active", UserAdmin.list_filter)
         self.assertIn("is_verified", UserAdmin.list_filter)
         self.assertIn("is_staff", UserAdmin.list_filter)
+        self.assertIn("gender", UserAdmin.list_filter)
         self.assertEqual(UserAdmin.ordering, ("-created_at",))
 
     def test_mood_entry_count_reflects_actual_entries_and_links_to_filtered_list(self):

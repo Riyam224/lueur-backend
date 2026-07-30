@@ -3,6 +3,8 @@ from datetime import timedelta
 
 from django.utils import timezone
 
+from accounts.models import User
+
 from .ai_model import generate_weekly_letter
 from .crisis import contains_crisis_language
 from .models import MoodEntry
@@ -51,11 +53,19 @@ def warm_weekly_letter_cache(user_id):
     if context is None:
         return False
 
+    preferred_language, gender = None, None
+    user = User.objects.filter(id=user_id).only("preferred_language", "gender").first()
+    if user is not None:
+        preferred_language = user.preferred_language
+        gender = user.gender
+
     try:
         generate_weekly_letter(
             context["formatted_entries"],
             context["entries_count"],
             context["dominant_emoji"],
+            preferred_language,
+            gender,
         )
         return True
     except Exception as exc:
