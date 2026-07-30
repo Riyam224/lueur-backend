@@ -503,7 +503,7 @@ No non-staff account can reach `/admin/` — access is gated by Django's standar
 ## Testing
 
 ```bash
-python manage.py test           # full suite (114 tests)
+python manage.py test           # full suite (114+ tests as of Jul 2026 — check runner output for current count)
 python manage.py test therapist # generate/history/weekly-letter, bilingual crisis detection, localization/gender, streak calc
 python manage.py test accounts  # profile, preferred_language/gender, delete-account, verify, delete_user_by_email command
 ```
