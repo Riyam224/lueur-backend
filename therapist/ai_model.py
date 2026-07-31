@@ -36,7 +36,15 @@ def _call_groq(payload):
             response = requests.post(GROQ_URL, json=payload, headers=headers, timeout=GROQ_TIMEOUT)
             response.raise_for_status()
             data = response.json()
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
+            if not content or not content.strip():
+                # openai/gpt-oss models spend part of max_tokens on internal
+                # reasoning before the answer; with a tight budget and a long
+                # history, reasoning can consume the whole budget and leave
+                # content empty. Treat that as a failure so the caller falls
+                # back instead of saving a blank ai_response.
+                raise ValueError("Groq returned empty content")
+            return content
         except (requests.RequestException, KeyError, IndexError, ValueError) as exc:
             last_error = exc
             if attempt < GROQ_MAX_ATTEMPTS - 1:
@@ -58,13 +66,16 @@ def generate_ai_response(emoji, thoughts, history=None, preferred_language=None,
     system_prompt = LunaPromptProvider.get_system_prompt(preferred_language, gender)
 
     prompt_tokens = estimate_tokens(system_prompt + str(history) + thoughts)
-    if not check_and_reserve_budget_with_retry(prompt_tokens):
+    if not check_and_reserve_budget_with_retry(prompt_tokens, estimated_response_tokens=400):
         return get_fallback_message(preferred_language)
 
     payload = {
         "model": GROQ_MODEL,
         "temperature": 0.85,  # more natural, less robotic
-        "max_tokens": 180,  # keeps responses short
+        "max_tokens": 400,  # gpt-oss spends part of this on reasoning before
+        # it writes the reply; 180 let long-history turns get fully consumed
+        # by reasoning, leaving an empty response (see _call_groq above)
+        "reasoning_effort": "low",  # keep reasoning short so it doesn't eat the reply budget
         "top_p": 0.9,  # more varied word choices
         "frequency_penalty": 0.6,  # prevents Luna repeating herself
         "presence_penalty": 0.5,  # encourages fresh responses each turn
