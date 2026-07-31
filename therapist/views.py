@@ -9,7 +9,12 @@ from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiResponse,
 )
-from .ai_model import generate_ai_response, generate_weekly_letter
+from .ai_model import (
+    generate_ai_response,
+    generate_weekly_letter,
+    SESSION_END_TAG,
+    trigger_memory_update,
+)
 from .services import build_weekly_letter_context
 from .crisis import contains_crisis_language
 from .crisis_ar import contains_crisis_language_ar
@@ -143,6 +148,7 @@ The entry is automatically saved to your journal history.
                 history,
                 request.user.preferred_language,
                 request.user.gender,
+                memory_summary=request.user.memory_summary,
             )
         except Exception as e:
             logger.error("Groq AI error: %s", e)
@@ -155,6 +161,18 @@ The entry is automatically saved to your journal history.
             ai_response=ai_reply,
             crisis_flagged=False,
         )
+
+        if SESSION_END_TAG in ai_reply:
+            trigger_memory_update(
+                request.user.id,
+                history,
+                emoji,
+                thoughts,
+                ai_reply,
+                request.user.preferred_language,
+                request.user.gender,
+            )
+
         data = MoodEntrySerializer(entry).data
         return Response(data, status=status.HTTP_200_OK)
 

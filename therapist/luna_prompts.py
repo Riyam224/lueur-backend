@@ -88,6 +88,34 @@ WEEKLY_LETTER_PROMPT_AR = (
     "تجنبي الأفعال المخاطبة المباشرة قدر الإمكان، واستخدمي صياغة وصفية بدلاً منها."
 )
 
+MEMORY_FRAMING_EN = "Here's what you remember about this person from earlier conversations: {summary}"
+MEMORY_FRAMING_AR = "هذا ما تتذكره لونا عن هذا الشخص من محادثات سابقة: {summary}"
+
+_MEMORY_FRAMING_BY_LANGUAGE = {
+    "en": MEMORY_FRAMING_EN,
+    "ar": MEMORY_FRAMING_AR,
+}
+
+MEMORY_SUMMARY_PROMPT_EN = """
+You are Luna, jotting a quick private note to yourself right after a chat wrapped up — not a
+report, just a friend's mental note. Write 2-3 sentences, same warm/casual voice as always:
+what this person's been going through, anything that helped or landed well, and anything
+worth gently checking in on next time. Never clinical, never a bullet list, never "the user
+stated" — just how a caring friend would remember it.
+"""
+
+MEMORY_SUMMARY_PROMPT_AR = """
+أنتِ لونا، وتكتبين لنفسك ملاحظة خاصة وسريعة بعد انتهاء المحادثة، وليست تقريراً - مجرد شيء
+تتذكرينه كصديقة مقربة. اكتبي جملتين إلى ثلاث جمل، بنفس الأسلوب الدافئ والعفوي المعتاد: بم يمر
+هذا الشخص، وما الذي ساعده أو أثر فيه إيجابياً، وما يستحق السؤال عنه بلطف في المرة القادمة.
+بدون صياغة طبية، بدون نقاط، وبدون "ذكر المستخدم أن" - فقط كما تتذكر صديقة مهتمة.
+"""
+
+_MEMORY_SUMMARY_PROMPTS_BY_LANGUAGE = {
+    "en": MEMORY_SUMMARY_PROMPT_EN,
+    "ar": MEMORY_SUMMARY_PROMPT_AR,
+}
+
 GROQ_ERROR_FALLBACK_EN = "Luna is taking a little break right now. Please try again in a moment 🌿"
 GROQ_ERROR_FALLBACK_AR = "لونا بحاجة إلى دقيقة الآن. حاول مرة أخرى بعد قليل 🌿"
 
@@ -184,6 +212,15 @@ def _with_gender_instruction(prompt, language, gender):
     return f"{_gender_instruction_ar(gender)}\n\n{prompt}"
 
 
+def _with_memory_framing(prompt, language, memory_summary):
+    if not memory_summary:
+        return prompt
+    framing = _MEMORY_FRAMING_BY_LANGUAGE.get(language, MEMORY_FRAMING_EN).format(
+        summary=memory_summary
+    )
+    return f"{framing}\n\n{prompt}"
+
+
 # Matches {male_form/female_form} markers in literal user-facing Arabic
 # text (as opposed to GENDER_INSTRUCTIONS_AR, which steers model-generated
 # text instead of substituting into a fixed template).
@@ -215,9 +252,16 @@ class LunaPromptProvider:
     """Resolves Luna's language- (and, for Arabic, gender-) aware prompts."""
 
     @staticmethod
-    def get_system_prompt(preferred_language, gender=DEFAULT_GENDER):
+    def get_system_prompt(preferred_language, gender=DEFAULT_GENDER, memory_summary=None):
         language = _resolve_language(preferred_language)
         prompt = _PROMPTS_BY_LANGUAGE[language]
+        prompt = _with_gender_instruction(prompt, language, gender)
+        return _with_memory_framing(prompt, language, memory_summary)
+
+    @staticmethod
+    def get_memory_summary_prompt(preferred_language, gender=DEFAULT_GENDER):
+        language = _resolve_language(preferred_language)
+        prompt = _MEMORY_SUMMARY_PROMPTS_BY_LANGUAGE[language]
         return _with_gender_instruction(prompt, language, gender)
 
     @staticmethod
@@ -248,6 +292,11 @@ def get_placeholder_languages():
     placeholders |= {
         lang
         for lang, prompt in _WEEKLY_LETTER_PROMPTS_BY_LANGUAGE.items()
+        if "PLACEHOLDER" in prompt
+    }
+    placeholders |= {
+        lang
+        for lang, prompt in _MEMORY_SUMMARY_PROMPTS_BY_LANGUAGE.items()
         if "PLACEHOLDER" in prompt
     }
     return sorted(placeholders)

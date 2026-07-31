@@ -13,6 +13,14 @@ state across processes.
 
 Drop this file into your `therapist` app (or `core`), then wire it into
 groq_client.py as shown at the bottom of this file.
+
+This guard covers two call sites today: the main chat call in
+generate_ai_response(), and the fire-and-forget post-session memory
+summarization in trigger_memory_update()/_generate_session_memory_summary()
+(therapist/ai_model.py). The summarization call runs on a background thread
+after the HTTP response is already sent, so a budget miss there just skips
+that turn's memory update (memory_summary stays as it was) rather than
+risking tipping the account over Groq's rate limit.
 """
 
 import random

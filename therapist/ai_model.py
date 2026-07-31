@@ -1,9 +1,15 @@
 import hashlib
+import logging
 import os
+import threading
 import time
 
 import requests
 from django.core.cache import cache
+from django.db import connections
+from django.utils import timezone
+
+from accounts.models import User
 
 from .crisis import contains_crisis_language
 from .groq_budget_guard import (
@@ -13,8 +19,12 @@ from .groq_budget_guard import (
 )
 from .luna_prompts import LunaPromptProvider
 
+logger = logging.getLogger(__name__)
+
 WEEKLY_LETTER_CACHE_TIMEOUT = 60 * 60 * 24  # 24 hours
 HISTORY_WINDOW = 8
+SESSION_END_TAG = "[SESSION_END]"
+MEMORY_SUMMARY_MAX_TOKENS = 220
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -53,7 +63,9 @@ def _call_groq(payload):
     raise last_error
 
 
-def generate_ai_response(emoji, thoughts, history=None, preferred_language=None, gender=None):
+def generate_ai_response(
+    emoji, thoughts, history=None, preferred_language=None, gender=None, memory_summary=None
+):
     if contains_crisis_language(thoughts):
         # Currently unreachable: views.py already runs its own (bilingual)
         # crisis check and returns before ever calling this function. Kept
@@ -63,7 +75,7 @@ def generate_ai_response(emoji, thoughts, history=None, preferred_language=None,
         return LunaPromptProvider.get_crisis_response(preferred_language, gender)
 
     history = (history or [])[-HISTORY_WINDOW:]
-    system_prompt = LunaPromptProvider.get_system_prompt(preferred_language, gender)
+    system_prompt = LunaPromptProvider.get_system_prompt(preferred_language, gender, memory_summary)
 
     prompt_tokens = estimate_tokens(system_prompt + str(history) + thoughts)
     if not check_and_reserve_budget_with_retry(prompt_tokens, estimated_response_tokens=400):
@@ -92,6 +104,77 @@ def generate_ai_response(emoji, thoughts, history=None, preferred_language=None,
         ],
     }
     return _call_groq(payload)
+
+
+def _redact_crisis(text):
+    return "(a difficult moment)" if contains_crisis_language(text) else text
+
+
+def _build_session_transcript(history, emoji, thoughts, ai_reply):
+    transcript = []
+    for msg in history or []:
+        content = msg.get("content", "")
+        if msg.get("role") == "user":
+            content = _redact_crisis(content)
+        transcript.append({"role": msg.get("role"), "content": content})
+    transcript.append({
+        "role": "user",
+        "content": f"Emoji: {emoji}\nThoughts: {_redact_crisis(thoughts)}",
+    })
+    transcript.append({
+        "role": "assistant",
+        "content": ai_reply.replace(SESSION_END_TAG, "").strip(),
+    })
+    return transcript
+
+
+def _generate_session_memory_summary(transcript, preferred_language, gender):
+    system_prompt = LunaPromptProvider.get_memory_summary_prompt(preferred_language, gender)
+    transcript_text = "\n".join(f"{m['role']}: {m['content']}" for m in transcript)
+
+    prompt_tokens = estimate_tokens(system_prompt + transcript_text)
+    if not check_and_reserve_budget_with_retry(
+        prompt_tokens, estimated_response_tokens=MEMORY_SUMMARY_MAX_TOKENS
+    ):
+        return None
+
+    payload = {
+        "model": GROQ_MODEL,
+        "temperature": 0.7,
+        "max_tokens": MEMORY_SUMMARY_MAX_TOKENS,
+        "reasoning_effort": "low",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": transcript_text},
+        ],
+    }
+    return _call_groq(payload)
+
+
+def _update_user_memory(user_id, history, emoji, thoughts, ai_reply, preferred_language, gender):
+    try:
+        transcript = _build_session_transcript(history, emoji, thoughts, ai_reply)
+        summary = _generate_session_memory_summary(transcript, preferred_language, gender)
+        if not summary or not summary.strip():
+            return
+        User.objects.filter(id=user_id).update(
+            memory_summary=summary.strip(), memory_updated_at=timezone.now()
+        )
+    except Exception:
+        logger.exception("Failed to update memory summary for user_id=%s", user_id)
+    finally:
+        connections.close_all()
+
+
+def trigger_memory_update(user_id, history, emoji, thoughts, ai_reply, preferred_language, gender):
+    """Fire-and-forget: summarizes a just-ended session and overwrites the
+    user's stored memory on a background thread, so it never delays the
+    HTTP response already sent back to the user."""
+    threading.Thread(
+        target=_update_user_memory,
+        args=(user_id, history, emoji, thoughts, ai_reply, preferred_language, gender),
+        daemon=True,
+    ).start()
 
 
 def _weekly_letter_cache_key(formatted_entries, entries_count, dominant_emoji, preferred_language, gender):
