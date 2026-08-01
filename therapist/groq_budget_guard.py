@@ -11,9 +11,6 @@ If you ever scale to multiple workers/dynos, swap CACHES to a shared
 backend (e.g. Railway's Redis add-on) — LocMemCache counters don't share
 state across processes.
 
-Drop this file into your `therapist` app (or `core`), then wire it into
-groq_client.py as shown at the bottom of this file.
-
 This guard covers two call sites today: the main chat call in
 generate_ai_response(), and the fire-and-forget post-session memory
 summarization in trigger_memory_update()/_generate_session_memory_summary()
@@ -150,44 +147,3 @@ def check_and_reserve_budget_with_retry(
         if time.time() >= deadline:
             return False
         time.sleep(retry_interval)
-
-
-def get_budget_status():
-    """Optional: surface current usage, e.g. for an admin dashboard widget."""
-    minute_key = f"groq:reqs:min:{_minute_bucket()}"
-    day_key = f"groq:reqs:day:{_day_bucket()}"
-    tokens_key = f"groq:tokens:min:{_minute_bucket()}"
-
-    return {
-        "requests_this_minute": cache.get(minute_key, 0),
-        "requests_today": cache.get(day_key, 0),
-        "tokens_this_minute": cache.get(tokens_key, 0),
-        "limits": {
-            "requests_per_minute": SAFE_REQUESTS_PER_MINUTE,
-            "requests_per_day": SAFE_REQUESTS_PER_DAY,
-            "tokens_per_minute": SAFE_TOKENS_PER_MINUTE,
-        },
-    }
-
-
-# -----------------------------------------------------------------------------
-# INTEGRATION — how to wire this into your existing groq_client.py
-# -----------------------------------------------------------------------------
-#
-# from .groq_budget_guard import check_and_reserve_budget_with_retry, estimate_tokens, get_fallback_message
-#
-# def generate_ai_response(emoji, thoughts, history=None):
-#     if contains_crisis_language(thoughts):
-#         return CRISIS_RESPONSE
-#
-#     history = history or []
-#
-#     # Rough estimate of prompt size: system prompt + history + this message
-#     prompt_text = LUNA_SYSTEM_PROMPT + str(history) + thoughts
-#     prompt_tokens = estimate_tokens(prompt_text)
-#
-#     if not check_and_reserve_budget_with_retry(prompt_tokens):
-#         return get_fallback_message()   # in-character, never reveals a system limit
-#
-#     payload = { ... same as before ... }
-#     return _call_groq(payload)

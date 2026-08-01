@@ -1,6 +1,3 @@
-# -----------------------------------------------------
-# Base settings
-# ----------------------------------------------------
 import sys
 import os
 from pathlib import Path
@@ -20,7 +17,7 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = [
     "web-production-f8628.up.railway.app",
     "127.0.0.1",
-    ".railway.app",  # keep for any future railway subdomain changes
+    ".railway.app",
 ]
 
 CORS_ALLOWED_ORIGINS = [
@@ -34,9 +31,6 @@ CSRF_TRUSTED_ORIGINS = [
 
 AUTH_USER_MODEL = "accounts.User"
 
-# -----------------------------------------------------
-# Cache — shared across gunicorn workers
-# -----------------------------------------------------
 # LocMemCache is per-process, so with multiple gunicorn workers (Procfile:
 # --workers 2) the Groq budget guard's counters (therapist/groq_budget_guard.py)
 # would be split across workers instead of shared, roughly doubling the real
@@ -49,9 +43,6 @@ CACHES = {
     }
 }
 
-# -----------------------------------------------------
-# Installed apps
-# -----------------------------------------------------
 INSTALLED_APPS = [
     "jazzmin",
     "django.contrib.admin",
@@ -67,9 +58,6 @@ INSTALLED_APPS = [
     "accounts",
 ]
 
-# -----------------------------------------------------
-# Jazzmin admin theme
-# -----------------------------------------------------
 JAZZMIN_SETTINGS = {
     "site_title": "Lueur Admin",
     "site_header": "Lueur Admin",
@@ -97,12 +85,9 @@ JAZZMIN_UI_TWEAKS = {
     "default_theme_mode": "light",
 }
 
-# -----------------------------------------------------
-# Middleware + WhiteNoise
-# -----------------------------------------------------
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # <-- مهم لخدمة static
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -112,9 +97,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# -----------------------------------------------------
-# Templates
-# -----------------------------------------------------
 ROOT_URLCONF = "core.urls"
 TEMPLATES = [
     {
@@ -135,9 +117,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 WSGI_APPLICATION = "core.wsgi.application"
 
-# -----------------------------------------------------
-# Database
-# -----------------------------------------------------
 DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
@@ -145,9 +124,6 @@ DATABASES = {
     )
 }
 
-# -----------------------------------------------------
-# Password validation
-# -----------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
@@ -157,17 +133,11 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# -----------------------------------------------------
-# Internationalization
-# -----------------------------------------------------
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# -----------------------------------------------------
-# Static files
-# -----------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
@@ -180,9 +150,6 @@ STORAGES = {
     },
 }
 
-# -----------------------------------------------------
-# REST Framework
-# -----------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
@@ -204,9 +171,7 @@ REST_FRAMEWORK = {
         "luna_chat": "20/min",
     },
 }
-# -----------------------------------------------------
-# Logging
-# -----------------------------------------------------
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -261,9 +226,6 @@ header. See the FirebaseAuth scheme below.
     ],
 }
 
-# -----------------------------------------------------
-# Production security hardening
-# -----------------------------------------------------
 TESTING = "test" in sys.argv
 
 if not DEBUG and not TESTING:
@@ -276,15 +238,40 @@ if not DEBUG and not TESTING:
     SECURE_HSTS_PRELOAD = True
 
 
-# -----------------------------------------------------
-# Sentry error monitoring
-# -----------------------------------------------------
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+SENTRY_ENVIRONMENT = os.environ.get("SENTRY_ENVIRONMENT", "development")
 
-if SENTRY_DSN and not DEBUG and not TESTING:
+# Journal entries and Luna chat content must never leave the server into
+# Sentry, so any of these keys (however nested) get redacted from request
+# body data before an event is sent.
+_SENTRY_REDACT_FIELDS = {"journal", "mood_note", "message", "content", "text", "entry"}
+
+
+def _sentry_redact(value):
+    if isinstance(value, dict):
+        return {
+            k: "[REDACTED]" if isinstance(k, str) and k.lower() in _SENTRY_REDACT_FIELDS
+            else _sentry_redact(v)
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_sentry_redact(item) for item in value]
+    return value
+
+
+def _sentry_before_send(event, hint):
+    request_info = event.get("request")
+    if isinstance(request_info, dict) and "data" in request_info:
+        request_info["data"] = _sentry_redact(request_info["data"])
+    return event
+
+
+if SENTRY_DSN and not TESTING:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         integrations=[DjangoIntegration()],
         traces_sample_rate=0.1,
         send_default_pii=False,
+        environment=SENTRY_ENVIRONMENT,
+        before_send=_sentry_before_send,
     )
