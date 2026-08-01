@@ -98,6 +98,30 @@ _MEMORY_FRAMING_BY_LANGUAGE = {
     "ar": MEMORY_FRAMING_AR,
 }
 
+POST_EXERCISE_CONTEXT_EN = (
+    "The user just finished a breathing exercise. Respond warmly and "
+    "naturally to what they said — don't ask evaluative questions about "
+    "whether the exercise worked, or how their energy or breathing "
+    "changed. Just continue the conversation like a friend would."
+)
+POST_EXERCISE_CONTEXT_AR = (
+    "الشخص أنهى للتو تمرين تنفس. رُدّي بدفء وبشكل طبيعي على ما قاله، دون "
+    "طرح أسئلة تقييمية حول نجاح التمرين أو تغيّر طاقته أو تنفسه — فقط "
+    "أكملي الحديث كما تفعل صديقة مقربة."
+)
+
+_POST_EXERCISE_CONTEXT_BY_LANGUAGE = {
+    "en": POST_EXERCISE_CONTEXT_EN,
+    "ar": POST_EXERCISE_CONTEXT_AR,
+}
+
+# Maps a context_flag value (from MoodEntryCreateSerializer, never
+# persisted) to its per-language instruction. Unknown/unregistered flags
+# are ignored rather than raising, since this is client-supplied input.
+_CONTEXT_FLAG_INSTRUCTIONS = {
+    "post_exercise_breathing": _POST_EXERCISE_CONTEXT_BY_LANGUAGE,
+}
+
 MEMORY_SUMMARY_PROMPT_EN = """
 You are Luna, jotting a quick private note to yourself right after a chat wrapped up — not a
 report, just a friend's mental note. Write 2-3 sentences, same warm/casual voice as always:
@@ -223,6 +247,18 @@ def _with_memory_framing(prompt, language, memory_summary):
     return f"{framing}\n\n{prompt}"
 
 
+def _with_context_flag(prompt, language, context_flag):
+    if not context_flag:
+        return prompt
+    instructions_by_language = _CONTEXT_FLAG_INSTRUCTIONS.get(context_flag)
+    if not instructions_by_language:
+        return prompt
+    instruction = instructions_by_language.get(
+        language, instructions_by_language[DEFAULT_LANGUAGE]
+    )
+    return f"{instruction}\n\n{prompt}"
+
+
 # Matches {male_form/female_form} markers in literal user-facing Arabic
 # text (as opposed to GENDER_INSTRUCTIONS_AR, which steers model-generated
 # text instead of substituting into a fixed template).
@@ -254,11 +290,14 @@ class LunaPromptProvider:
     """Resolves Luna's language- (and, for Arabic, gender-) aware prompts."""
 
     @staticmethod
-    def get_system_prompt(preferred_language, gender=DEFAULT_GENDER, memory_summary=None):
+    def get_system_prompt(
+        preferred_language, gender=DEFAULT_GENDER, memory_summary=None, context_flag=None
+    ):
         language = _resolve_language(preferred_language)
         prompt = _PROMPTS_BY_LANGUAGE[language]
         prompt = _with_gender_instruction(prompt, language, gender)
-        return _with_memory_framing(prompt, language, memory_summary)
+        prompt = _with_memory_framing(prompt, language, memory_summary)
+        return _with_context_flag(prompt, language, context_flag)
 
     @staticmethod
     def get_memory_summary_prompt(preferred_language, gender=DEFAULT_GENDER):

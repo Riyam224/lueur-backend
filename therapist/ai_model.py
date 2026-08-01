@@ -64,7 +64,8 @@ def _call_groq(payload):
 
 
 def generate_ai_response(
-    emoji, thoughts, history=None, preferred_language=None, gender=None, memory_summary=None
+    emoji, thoughts, history=None, preferred_language=None, gender=None,
+    memory_summary=None, context_flag=None
 ):
     if contains_crisis_language(thoughts):
         # Currently unreachable: views.py already runs its own (bilingual)
@@ -75,7 +76,9 @@ def generate_ai_response(
         return LunaPromptProvider.get_crisis_response(preferred_language, gender)
 
     history = (history or [])[-HISTORY_WINDOW:]
-    system_prompt = LunaPromptProvider.get_system_prompt(preferred_language, gender, memory_summary)
+    system_prompt = LunaPromptProvider.get_system_prompt(
+        preferred_language, gender, memory_summary, context_flag
+    )
 
     prompt_tokens = estimate_tokens(system_prompt + str(history) + thoughts)
     if not check_and_reserve_budget_with_retry(prompt_tokens, estimated_response_tokens=400):

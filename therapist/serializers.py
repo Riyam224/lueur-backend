@@ -17,6 +17,11 @@ class MoodEntrySerializer(serializers.ModelSerializer):
 
 class MoodEntryCreateSerializer(serializers.ModelSerializer):
     thoughts = serializers.CharField(max_length=5000)
+    context_flag = serializers.ChoiceField(
+        choices=[("post_exercise_breathing", "post_exercise_breathing")],
+        required=False,
+        allow_null=True,
+    )
     history = serializers.ListField(
         child=serializers.DictField(
             child=serializers.CharField(
@@ -31,7 +36,8 @@ class MoodEntryCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MoodEntry
-        fields = ("emoji", "thoughts", "history")
+        fields = ("emoji", "thoughts", "history", "context_flag")
         extra_kwargs = {
             "history": {"write_only": True},
+            "context_flag": {"write_only": True},
         }

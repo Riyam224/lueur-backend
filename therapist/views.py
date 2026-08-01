@@ -110,6 +110,7 @@ The entry is automatically saved to your journal history.
         emoji = input_serializer.validated_data["emoji"]
         thoughts = input_serializer.validated_data["thoughts"]
         history = input_serializer.validated_data.get("history", [])[-10:]
+        context_flag = input_serializer.validated_data.get("context_flag")
 
         # Both detectors always run, regardless of preferred_language: a user
         # set to 'en' may still type in Arabic and vice versa. Each is a
@@ -149,6 +150,7 @@ The entry is automatically saved to your journal history.
                 request.user.preferred_language,
                 request.user.gender,
                 memory_summary=request.user.memory_summary,
+                context_flag=context_flag,
             )
         except Exception as e:
             logger.error("Groq AI error: %s", e)
