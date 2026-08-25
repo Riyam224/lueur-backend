@@ -19,7 +19,11 @@ from .services import build_weekly_letter_context
 from .crisis import contains_crisis_language
 from .crisis_ar import contains_crisis_language_ar
 from .luna_prompts import LunaPromptProvider
-from .serializers import JournalEntrySerializer, JournalEntryCreateSerializer
+from .serializers import (
+    JournalEntrySerializer,
+    JournalEntryCreateSerializer,
+    ActivityEntryCreateSerializer,
+)
 from datetime import timedelta
 from django.utils import timezone
 from .models import JournalEntry
@@ -177,6 +181,38 @@ The entry is automatically saved to your journal history.
 
         data = JournalEntrySerializer(entry).data
         return Response(data, status=status.HTTP_200_OK)
+
+
+class ActivityEntryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Companion"],
+        summary="Log a non-chat activity entry",
+        description="""
+Records a completed activity (breathing exercise, sudoku, drawing, or weekly
+letter read) to the authenticated user's journal history. No AI response is
+generated.
+        """,
+        request=ActivityEntryCreateSerializer,
+        responses={
+            201: JournalEntrySerializer,
+            400: OpenApiResponse(description="Invalid entry_type or payload"),
+            401: OpenApiResponse(description="Authentication required"),
+        },
+    )
+    def post(self, request):
+        input_serializer = ActivityEntryCreateSerializer(data=request.data)
+        if not input_serializer.is_valid():
+            return Response(input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        entry = JournalEntry.objects.create(
+            user_id=str(request.user.id),
+            entry_type=input_serializer.validated_data["entry_type"],
+            payload=input_serializer.validated_data["payload"],
+        )
+        data = JournalEntrySerializer(entry).data
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class AllHistoryAPIView(APIView):
