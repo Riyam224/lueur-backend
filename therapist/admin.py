@@ -10,8 +10,8 @@ def _truncate(text, length=50):
 
 @admin.register(JournalEntry)
 class JournalEntryAdmin(admin.ModelAdmin):
-    list_display = ("user_id", "emoji", "thoughts_preview", "ai_response_preview", "crisis_flagged", "created_at")
-    list_filter = ("crisis_flagged",)
+    list_display = ("user_id", "entry_type", "emoji", "thoughts_preview", "ai_response_preview", "crisis_flagged", "created_at")
+    list_filter = ("entry_type", "crisis_flagged")
     date_hierarchy = "created_at"
     search_fields = ("user_id", "thoughts", "ai_response")
     readonly_fields = ("created_at",)
