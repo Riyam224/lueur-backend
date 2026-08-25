@@ -943,7 +943,7 @@ footer {
             <span class="pill">Body: emoji, thoughts</span>
             <span class="pill">Optional: history[]</span>
             <span class="pill pill-p">Auth: Bearer token</span>
-            <span class="pill pill-g">Returns: MoodEntry object</span>
+            <span class="pill pill-g">Returns: JournalEntry object</span>
             <span class="pill">Content-Type: application/json</span>
           </div>
         </div>
@@ -957,7 +957,7 @@ footer {
           <div class="ep-desc">Retrieve mood journal entries for the authenticated user, ordered by most recent first. Each entry includes emoji, thoughts, Luna's full AI response, and timestamp.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
-            <span class="pill pill-p">Returns: MoodEntry array</span>
+            <span class="pill pill-p">Returns: JournalEntry array</span>
             <span class="pill">Ordered: newest first</span>
           </div>
         </div>
@@ -986,7 +986,7 @@ footer {
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
             <span class="pill">Irreversible</span>
-            <span class="pill pill-g">Cascades: MoodEntry</span>
+            <span class="pill pill-g">Cascades: JournalEntry</span>
           </div>
         </div>
         <div class="ep-badge">🗑️ Danger</div>
@@ -1024,11 +1024,11 @@ footer {
     <!-- RESPONSE MODEL -->
     <div class="rv" style="margin-top:48px">
       <span class="sec-tag">// response schema</span>
-      <h2>MoodEntry model</h2>
+      <h2>JournalEntry model</h2>
     </div>
     <div class="model rv">
       <div class="model-hdr">
-        <span class="model-title">MoodEntry</span>
+        <span class="model-title">JournalEntry</span>
         <span class="model-badge">application/json</span>
       </div>
       <div class="model-fields">

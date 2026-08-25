@@ -115,7 +115,7 @@ _POST_EXERCISE_CONTEXT_BY_LANGUAGE = {
     "ar": POST_EXERCISE_CONTEXT_AR,
 }
 
-# Maps a context_flag value (from MoodEntryCreateSerializer, never
+# Maps a context_flag value (from JournalEntryCreateSerializer, never
 # persisted) to its per-language instruction. Unknown/unregistered flags
 # are ignored rather than raising, since this is client-supplied input.
 _CONTEXT_FLAG_INSTRUCTIONS = {

@@ -6,7 +6,7 @@ from django.core.management.base import CommandError
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from therapist.models import MoodEntry
+from therapist.models import JournalEntry
 
 from .admin import UserAdmin
 from .models import User
@@ -222,24 +222,24 @@ class DeleteAccountTests(TestCase):
     @patch("accounts.views.firebase_auth_admin.delete_user")
     def test_delete_account_removes_mood_entries(self, mock_delete):
         alice = User.objects.get(firebase_uid="alice")
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(alice.id), emoji="😊", thoughts="entry", ai_response="ok"
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(alice.id), emoji="😔", thoughts="entry two", ai_response="ok"
         )
         response = self.client.delete(
             "/api/accounts/delete-account/", **self.auth_header
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(MoodEntry.objects.filter(user_id=str(alice.id)).count(), 0)
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(alice.id)).count(), 0)
 
     @patch("accounts.views.firebase_auth_admin.delete_user")
     def test_delete_account_firebase_failure_returns_error_and_keeps_local_row(
         self, mock_delete
     ):
         alice = User.objects.get(firebase_uid="alice")
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(alice.id), emoji="😊", thoughts="entry", ai_response="ok"
         )
         mock_delete.side_effect = Exception("network error")
@@ -248,7 +248,7 @@ class DeleteAccountTests(TestCase):
         )
         self.assertEqual(response.status_code, 502)
         self.assertTrue(User.objects.filter(firebase_uid="alice").exists())
-        self.assertEqual(MoodEntry.objects.filter(user_id=str(alice.id)).count(), 1)
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(alice.id)).count(), 1)
 
     def test_unauthenticated_deletion_rejected(self):
         response = self.client.delete("/api/accounts/delete-account/")
@@ -344,10 +344,10 @@ class DeleteUserByEmailCommandTests(TestCase):
             firebase_uid="requester-uid",
             username="requester-uid",
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(user.id), emoji="😊", thoughts="entry one", ai_response="ok"
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(user.id), emoji="😔", thoughts="entry two", ai_response="ok"
         )
         user_id = user.id
@@ -357,7 +357,7 @@ class DeleteUserByEmailCommandTests(TestCase):
 
         mock_delete.assert_called_once_with("requester-uid")
         self.assertFalse(User.objects.filter(id=user_id).exists())
-        self.assertEqual(MoodEntry.objects.filter(user_id=str(user_id)).count(), 0)
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(user_id)).count(), 0)
         self.assertIn("Deleted account and journal entries", out.getvalue())
 
     def test_unknown_email_raises_command_error_and_deletes_nothing(self):
@@ -387,19 +387,19 @@ class UserAdminConfigTests(TestCase):
         self.assertIn("gender", UserAdmin.list_filter)
         self.assertEqual(UserAdmin.ordering, ("-created_at",))
 
-    def test_mood_entry_count_reflects_actual_entries_and_links_to_filtered_list(self):
+    def test_journal_entry_count_reflects_actual_entries_and_links_to_filtered_list(self):
         user = User.objects.create(
             email="counted@example.com", username="counted", firebase_uid="counted-uid"
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(user.id), emoji="😊", thoughts="one", ai_response="ok"
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(user.id), emoji="😔", thoughts="two", ai_response="ok"
         )
 
         admin_instance = UserAdmin(User, None)
-        result = admin_instance.mood_entry_count(user)
+        result = admin_instance.journal_entry_count(user)
 
         self.assertIn("2", str(result))
         self.assertIn(str(user.id), str(result))
@@ -420,10 +420,10 @@ class UserAdminDeleteAccountActionTests(TestCase):
             firebase_uid="target-uid",
             username="target-uid",
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(self.user.id), emoji="😊", thoughts="one", ai_response="ok"
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(self.user.id), emoji="😔", thoughts="two", ai_response="ok"
         )
 
@@ -447,7 +447,7 @@ class UserAdminDeleteAccountActionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         mock_delete.assert_called_once_with("target-uid")
         self.assertFalse(User.objects.filter(id=user_id).exists())
-        self.assertEqual(MoodEntry.objects.filter(user_id=str(user_id)).count(), 0)
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(user_id)).count(), 0)
 
     def test_unconfirmed_action_shows_confirmation_and_deletes_nothing(self):
         response = self._post_action(confirm=False)
@@ -467,6 +467,6 @@ class UserAdminDeleteAccountActionTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(User.objects.filter(id=user_id).exists())
-        self.assertEqual(MoodEntry.objects.filter(user_id=str(user_id)).count(), 2)
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(user_id)).count(), 2)
         messages = [str(m) for m in response.context["messages"]]
         self.assertTrue(any("Failed to delete" in m for m in messages))

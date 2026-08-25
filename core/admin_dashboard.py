@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from accounts.models import User
-from therapist.models import MoodEntry
+from therapist.models import JournalEntry
 from therapist.views import calculate_streak
 
 
@@ -14,10 +14,10 @@ def dashboard_summary():
     no caching, so figures always reflect current data (FR-011).
     """
     now = timezone.now()
-    entries_7d = MoodEntry.objects.filter(created_at__gte=now - timedelta(days=7))
-    entries_30d = MoodEntry.objects.filter(created_at__gte=now - timedelta(days=30))
+    entries_7d = JournalEntry.objects.filter(created_at__gte=now - timedelta(days=7))
+    entries_30d = JournalEntry.objects.filter(created_at__gte=now - timedelta(days=30))
 
-    user_ids_with_entries = MoodEntry.objects.values_list(
+    user_ids_with_entries = JournalEntry.objects.values_list(
         "user_id", flat=True
     ).distinct()
     streaks = [calculate_streak(uid, now=now) for uid in user_ids_with_entries]

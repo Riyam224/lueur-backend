@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .admin import MoodEntryAdmin
+from .admin import JournalEntryAdmin
 from .crisis import contains_crisis_language, CRISIS_RESPONSE
 from .crisis_ar import (
     CRISIS_KEYWORDS_AR,
@@ -29,7 +29,7 @@ from .luna_prompts import (
     apply_gender_variant,
     assert_no_placeholder_prompts,
 )
-from .models import MoodEntry
+from .models import JournalEntry
 from .views import calculate_streak
 
 
@@ -57,10 +57,10 @@ class CrisisDetectionUnitTests(TestCase):
 
 class CalculateStreakTests(TestCase):
     def _entry_on(self, user_id, days_ago, now):
-        e = MoodEntry.objects.create(
+        e = JournalEntry.objects.create(
             user_id=str(user_id), emoji="😊", thoughts="entry", ai_response="ok"
         )
-        MoodEntry.objects.filter(id=e.id).update(created_at=now - timedelta(days=days_ago))
+        JournalEntry.objects.filter(id=e.id).update(created_at=now - timedelta(days=days_ago))
         return e
 
     def test_no_entries_returns_zero(self):
@@ -237,19 +237,19 @@ class TherapistAuthIsolationTests(TestCase):
             email="user-b@example.com", firebase_uid="user-b", username="user-b"
         )
 
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(user_a.id),
             emoji="😊",
             thoughts="Entry one",
             ai_response="AI response",
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(user_a.id),
             emoji="😊",
             thoughts="Entry two",
             ai_response="AI response",
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(user_b.id),
             emoji="😡",
             thoughts="Entry three",
@@ -276,13 +276,13 @@ class TherapistAuthIsolationTests(TestCase):
         user_a = User.objects.create(
             email="user-crisis@example.com", firebase_uid="user-crisis", username="user-crisis"
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(user_a.id),
             emoji="😔",
             thoughts="I want to kill myself",
             ai_response="AI response",
         )
-        MoodEntry.objects.create(
+        JournalEntry.objects.create(
             user_id=str(user_a.id),
             emoji="😊",
             thoughts="had a good day",
@@ -299,28 +299,28 @@ class TherapistAuthIsolationTests(TestCase):
         self.assertIn("had a good day", formatted_entries_sent)
 
 
-class MoodEntryAdminConfigTests(TestCase):
+class JournalEntryAdminConfigTests(TestCase):
     def test_crisis_flagged_and_date_hierarchy_filters_configured(self):
-        self.assertIn("crisis_flagged", MoodEntryAdmin.list_filter)
-        self.assertEqual(MoodEntryAdmin.date_hierarchy, "created_at")
+        self.assertIn("crisis_flagged", JournalEntryAdmin.list_filter)
+        self.assertEqual(JournalEntryAdmin.date_hierarchy, "created_at")
 
     def test_created_at_is_readonly(self):
-        self.assertIn("created_at", MoodEntryAdmin.readonly_fields)
+        self.assertIn("created_at", JournalEntryAdmin.readonly_fields)
 
     def test_list_display_uses_preview_methods_not_raw_textfields(self):
-        self.assertNotIn("thoughts", MoodEntryAdmin.list_display)
-        self.assertNotIn("ai_response", MoodEntryAdmin.list_display)
-        self.assertIn("thoughts_preview", MoodEntryAdmin.list_display)
-        self.assertIn("ai_response_preview", MoodEntryAdmin.list_display)
+        self.assertNotIn("thoughts", JournalEntryAdmin.list_display)
+        self.assertNotIn("ai_response", JournalEntryAdmin.list_display)
+        self.assertIn("thoughts_preview", JournalEntryAdmin.list_display)
+        self.assertIn("ai_response_preview", JournalEntryAdmin.list_display)
 
     def test_preview_methods_truncate_long_text(self):
-        entry = MoodEntry.objects.create(
+        entry = JournalEntry.objects.create(
             user_id="user-1",
             emoji="😊",
             thoughts="x" * 200,
             ai_response="y" * 200,
         )
-        admin_instance = MoodEntryAdmin(MoodEntry, None)
+        admin_instance = JournalEntryAdmin(JournalEntry, None)
         self.assertLess(len(admin_instance.thoughts_preview(entry)), 200)
         self.assertLess(len(admin_instance.ai_response_preview(entry)), 200)
 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import MoodEntry
+from .models import JournalEntry
 
 
 def _truncate(text, length=50):
@@ -8,8 +8,8 @@ def _truncate(text, length=50):
     return text if len(text) <= length else text[:length] + "…"
 
 
-@admin.register(MoodEntry)
-class MoodEntryAdmin(admin.ModelAdmin):
+@admin.register(JournalEntry)
+class JournalEntryAdmin(admin.ModelAdmin):
     list_display = ("user_id", "emoji", "thoughts_preview", "ai_response_preview", "crisis_flagged", "created_at")
     list_filter = ("crisis_flagged",)
     date_hierarchy = "created_at"

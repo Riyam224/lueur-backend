@@ -4,20 +4,20 @@ from django.test import TestCase
 from django.utils import timezone
 
 from accounts.models import User
-from therapist.models import MoodEntry
+from therapist.models import JournalEntry
 
 from .admin_dashboard import dashboard_summary
 
 
 def _entry(user_id, days_ago, now, crisis_flagged=False):
-    e = MoodEntry.objects.create(
+    e = JournalEntry.objects.create(
         user_id=str(user_id),
         emoji="😊",
         thoughts="entry",
         ai_response="ok",
         crisis_flagged=crisis_flagged,
     )
-    MoodEntry.objects.filter(id=e.id).update(created_at=now - timedelta(days=days_ago))
+    JournalEntry.objects.filter(id=e.id).update(created_at=now - timedelta(days=days_ago))
     return e
 
 

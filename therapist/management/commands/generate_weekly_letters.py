@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from therapist.models import MoodEntry
+from therapist.models import JournalEntry
 from therapist.services import warm_weekly_letter_cache
 
 
@@ -20,7 +20,7 @@ class Command(BaseCommand):
         week_start = timezone.now() - timedelta(days=7)
 
         active_user_ids = (
-            MoodEntry.objects.filter(created_at__gte=week_start)
+            JournalEntry.objects.filter(created_at__gte=week_start)
             .values_list("user_id", flat=True)
             .distinct()
         )

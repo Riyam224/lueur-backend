@@ -71,7 +71,7 @@ JAZZMIN_SETTINGS = {
         "accounts": "fas fa-user-circle",
         "accounts.User": "fas fa-user",
         "therapist": "fas fa-book-open",
-        "therapist.MoodEntry": "fas fa-comment-dots",
+        "therapist.JournalEntry": "fas fa-comment-dots",
     },
 }
 JAZZMIN_UI_TWEAKS = {

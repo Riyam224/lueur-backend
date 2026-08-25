@@ -1,10 +1,10 @@
 from rest_framework import serializers
-from .models import MoodEntry
+from .models import JournalEntry
 
 
-class MoodEntrySerializer(serializers.ModelSerializer):
+class JournalEntrySerializer(serializers.ModelSerializer):
     class Meta:
-        model = MoodEntry
+        model = JournalEntry
         fields = "__all__"
         extra_kwargs = {
             "user_id": {"read_only": True},
@@ -15,7 +15,7 @@ class MoodEntrySerializer(serializers.ModelSerializer):
         }
 
 
-class MoodEntryCreateSerializer(serializers.ModelSerializer):
+class JournalEntryCreateSerializer(serializers.ModelSerializer):
     thoughts = serializers.CharField(max_length=5000)
     context_flag = serializers.ChoiceField(
         choices=[("post_exercise_breathing", "post_exercise_breathing")],
@@ -35,7 +35,7 @@ class MoodEntryCreateSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        model = MoodEntry
+        model = JournalEntry
         fields = ("emoji", "thoughts", "history", "context_flag")
         extra_kwargs = {
             "history": {"write_only": True},

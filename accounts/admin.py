@@ -6,7 +6,7 @@ from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils.html import format_html
 
-from therapist.models import MoodEntry
+from therapist.models import JournalEntry
 
 from .models import User
 from .services import delete_user_account
@@ -25,18 +25,18 @@ class UserAdmin(admin.ModelAdmin):
         "preferred_language",
         "gender",
         "created_at",
-        "mood_entry_count",
+        "journal_entry_count",
     )
     list_filter = ("is_active", "is_verified", "is_staff", "preferred_language", "gender")
     ordering = ("-created_at",)
     search_fields = ("email", "username")
-    readonly_fields = ("mood_entry_count",)
+    readonly_fields = ("journal_entry_count",)
     actions = ["delete_account_action"]
 
     @admin.display(description="Journal entries")
-    def mood_entry_count(self, obj):
-        count = MoodEntry.objects.filter(user_id=str(obj.id)).count()
-        url = reverse("admin:therapist_moodentry_changelist")
+    def journal_entry_count(self, obj):
+        count = JournalEntry.objects.filter(user_id=str(obj.id)).count()
+        url = reverse("admin:therapist_journalentry_changelist")
         return format_html('<a href="{}?user_id={}">{}</a>', url, obj.id, count)
 
     @admin.action(description="Delete account and journal entries")

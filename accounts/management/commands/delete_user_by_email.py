@@ -6,7 +6,7 @@ from accounts.services import delete_user_account
 
 class Command(BaseCommand):
     help = (
-        "Deletes a user's Firebase identity, MoodEntry rows, and local account "
+        "Deletes a user's Firebase identity, JournalEntry rows, and local account "
         "by email. Used to fulfil web-based deletion requests (see the "
         "Account Deletion section of the privacy policy) from users who "
         "cannot open the app to use the self-service delete-account endpoint."

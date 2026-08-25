@@ -7,7 +7,7 @@ from accounts.models import User
 
 from .ai_model import generate_weekly_letter
 from .crisis import contains_crisis_language
-from .models import MoodEntry
+from .models import JournalEntry
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def build_weekly_letter_context(user_id):
     Returns None if there aren't enough entries (< 2) to write a letter.
     """
     week_start = timezone.now() - timedelta(days=7)
-    entries = MoodEntry.objects.filter(
+    entries = JournalEntry.objects.filter(
         user_id=str(user_id), created_at__gte=week_start
     ).order_by("created_at")
     entries_count = entries.count()

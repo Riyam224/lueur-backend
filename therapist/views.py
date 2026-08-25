@@ -19,10 +19,10 @@ from .services import build_weekly_letter_context
 from .crisis import contains_crisis_language
 from .crisis_ar import contains_crisis_language_ar
 from .luna_prompts import LunaPromptProvider
-from .serializers import MoodEntrySerializer, MoodEntryCreateSerializer
+from .serializers import JournalEntrySerializer, JournalEntryCreateSerializer
 from datetime import timedelta
 from django.utils import timezone
-from .models import MoodEntry
+from .models import JournalEntry
 from rest_framework.throttling import ScopedRateThrottle
 from .throttles import LunaChatRateThrottle
 
@@ -68,7 +68,7 @@ The entry is automatically saved to your journal history.
             }
         },
         responses={
-            200: MoodEntrySerializer,
+            200: JournalEntrySerializer,
             400: OpenApiResponse(description="Missing emoji or thoughts"),
             401: OpenApiResponse(description="Authentication required"),
         },
@@ -103,7 +103,7 @@ The entry is automatically saved to your journal history.
         ],
     )
     def post(self, request):
-        input_serializer = MoodEntryCreateSerializer(data=request.data)
+        input_serializer = JournalEntryCreateSerializer(data=request.data)
         if not input_serializer.is_valid():
             return Response(input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -132,14 +132,14 @@ The entry is automatically saved to your journal history.
             crisis_response = LunaPromptProvider.get_crisis_response(
                 request.user.preferred_language, request.user.gender
             )
-            entry = MoodEntry.objects.create(
+            entry = JournalEntry.objects.create(
                 user_id=str(request.user.id),
                 emoji=emoji,
                 thoughts=thoughts,
                 ai_response=crisis_response,
                 crisis_flagged=True,
             )
-            data = MoodEntrySerializer(entry).data
+            data = JournalEntrySerializer(entry).data
             return Response(data, status=status.HTTP_200_OK)
 
         try:
@@ -156,7 +156,7 @@ The entry is automatically saved to your journal history.
             logger.error("Groq AI error: %s", e)
             ai_reply = LunaPromptProvider.get_groq_error_fallback(request.user.preferred_language)
 
-        entry = MoodEntry.objects.create(
+        entry = JournalEntry.objects.create(
             user_id=str(request.user.id),
             emoji=emoji,
             thoughts=thoughts,
@@ -175,7 +175,7 @@ The entry is automatically saved to your journal history.
                 request.user.gender,
             )
 
-        data = MoodEntrySerializer(entry).data
+        data = JournalEntrySerializer(entry).data
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -196,7 +196,7 @@ Each entry contains:
 - **created_at** — timestamp of the entry
         """,
         responses={
-            200: MoodEntrySerializer(many=True),
+            200: JournalEntrySerializer(many=True),
             401: OpenApiResponse(description="Authentication required"),
         },
         examples=[
@@ -225,10 +225,10 @@ Each entry contains:
         ],
     )
     def get(self, request):
-        entries = MoodEntry.objects.filter(
+        entries = JournalEntry.objects.filter(
             user_id=str(request.user.id)
         ).order_by("-created_at")
-        return Response(MoodEntrySerializer(entries, many=True).data)
+        return Response(JournalEntrySerializer(entries, many=True).data)
 
 
 def calculate_streak(user_id, now=None):
@@ -238,7 +238,7 @@ def calculate_streak(user_id, now=None):
     dates = sorted(
         {
             timezone.localtime(dt).date()
-            for dt in MoodEntry.objects.filter(user_id=str(user_id)).values_list(
+            for dt in JournalEntry.objects.filter(user_id=str(user_id)).values_list(
                 "created_at", flat=True
             )
         },
