@@ -268,6 +268,9 @@ Each entry contains:
 
 
 def calculate_streak(user_id, now=None):
+    # Intentionally unfiltered by entry_type — any activity (mood_chat,
+    # breathing, sudoku, drawing, letter_read) counts toward the streak,
+    # per product decision. Do not add an entry_type filter here.
     now = now or timezone.now()
     today = timezone.localtime(now).date()
 
