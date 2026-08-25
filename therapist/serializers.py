@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import JournalEntry
+from .models import JournalEntry, EntryType
 
 
 class JournalEntrySerializer(serializers.ModelSerializer):
@@ -41,3 +41,53 @@ class JournalEntryCreateSerializer(serializers.ModelSerializer):
             "history": {"write_only": True},
             "context_flag": {"write_only": True},
         }
+
+
+ACTIVITY_ENTRY_TYPE_CHOICES = [
+    choice for choice in EntryType.choices if choice[0] != EntryType.MOOD_CHAT
+]
+
+
+class ActivityEntryCreateSerializer(serializers.Serializer):
+    entry_type = serializers.ChoiceField(choices=ACTIVITY_ENTRY_TYPE_CHOICES, required=True)
+    payload = serializers.JSONField(required=False, default=dict)
+
+    def validate(self, attrs):
+        entry_type = attrs.get("entry_type")
+        payload = attrs.get("payload") or {}
+
+        if not isinstance(payload, dict):
+            raise serializers.ValidationError({"payload": "payload must be an object."})
+
+        if entry_type == EntryType.BREATHING:
+            if not isinstance(payload.get("duration_seconds"), int) or isinstance(
+                payload.get("duration_seconds"), bool
+            ):
+                raise serializers.ValidationError(
+                    {"payload": "breathing requires an integer 'duration_seconds'."}
+                )
+        elif entry_type == EntryType.SUDOKU:
+            if not isinstance(payload.get("solved"), bool):
+                raise serializers.ValidationError(
+                    {"payload": "sudoku requires a boolean 'solved'."}
+                )
+            if not isinstance(payload.get("duration_seconds"), int) or isinstance(
+                payload.get("duration_seconds"), bool
+            ):
+                raise serializers.ValidationError(
+                    {"payload": "sudoku requires an integer 'duration_seconds'."}
+                )
+            if not isinstance(payload.get("difficulty"), str):
+                raise serializers.ValidationError(
+                    {"payload": "sudoku requires a string 'difficulty'."}
+                )
+        elif entry_type == EntryType.DRAWING:
+            if not isinstance(payload.get("thumbnail_url"), str):
+                raise serializers.ValidationError(
+                    {"payload": "drawing requires a string 'thumbnail_url'."}
+                )
+        elif entry_type == EntryType.LETTER_READ:
+            pass
+
+        attrs["payload"] = payload
+        return attrs
