@@ -879,7 +879,7 @@ footer {
           <a href="/api/redoc/" class="btn-s">📖 ReDoc Docs</a>
         </div>
         <div class="stats">
-          <div><div class="stat-n">6</div><div class="stat-l">Endpoints</div></div>
+          <div><div class="stat-n">7</div><div class="stat-l">Endpoints</div></div>
           <div><div class="stat-n">&lt;1s</div><div class="stat-l">Response time</div></div>
           <div><div class="stat-n">REST</div><div class="stat-l">Standard</div></div>
           <div><div class="stat-n">🔐</div><div class="stat-l">Firebase Auth required</div></div>
@@ -929,7 +929,7 @@ footer {
   <div class="wrap">
     <div class="rv">
       <span class="sec-tag">// endpoints</span>
-      <h2>Six clean endpoints.<br>Infinite emotional support.</h2>
+      <h2>Seven clean endpoints.<br>Infinite emotional support.</h2>
       <p class="sec-desc">Firebase-authenticated REST API — all endpoints require a Bearer token. Identity is derived server-side from the verified Firebase token.</p>
     </div>
 
@@ -943,7 +943,7 @@ footer {
             <span class="pill">Body: emoji, thoughts</span>
             <span class="pill">Optional: history[]</span>
             <span class="pill pill-p">Auth: Bearer token</span>
-            <span class="pill pill-g">Returns: JournalEntry object</span>
+            <span class="pill pill-g">Returns: JournalEntry (+entry_type/payload)</span>
             <span class="pill">Content-Type: application/json</span>
           </div>
         </div>
@@ -954,14 +954,29 @@ footer {
         <div class="mth m-get">GET</div>
         <div>
           <div class="ep-path">/api/companion/history/</div>
-          <div class="ep-desc">Retrieve mood journal entries for the authenticated user, ordered by most recent first. Each entry includes emoji, thoughts, Luna's full AI response, and timestamp.</div>
+          <div class="ep-desc">Retrieve journal entries for the authenticated user, ordered by most recent first — a mix of mood chats and logged activities (breathing, sudoku, drawing, letter reads). Each entry includes entry_type and payload alongside emoji, thoughts, Luna's AI response, and timestamp.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
-            <span class="pill pill-p">Returns: JournalEntry array</span>
+            <span class="pill pill-p">Returns: JournalEntry (+entry_type/payload) array</span>
             <span class="pill">Ordered: newest first</span>
           </div>
         </div>
         <div class="ep-badge">📔 Journal</div>
+      </div>
+
+      <div class="ep">
+        <div class="mth m-post">POST</div>
+        <div>
+          <div class="ep-path">/api/companion/activity/</div>
+          <div class="ep-desc">Log a completed activity — breathing exercise, sudoku, drawing, or weekly letter read — to the authenticated user's journal. No AI call and no crisis check; payload shape is validated per entry_type.</div>
+          <div class="ep-pills">
+            <span class="pill">Body: entry_type, payload</span>
+            <span class="pill pill-p">Auth: Bearer token</span>
+            <span class="pill pill-g">Returns: JournalEntry (+entry_type/payload)</span>
+            <span class="pill">Content-Type: application/json</span>
+          </div>
+        </div>
+        <div class="ep-badge">🧩 Activity</div>
       </div>
 
       <div class="ep">
@@ -986,7 +1001,7 @@ footer {
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
             <span class="pill">Irreversible</span>
-            <span class="pill pill-g">Cascades: JournalEntry</span>
+            <span class="pill pill-g">Cascades: JournalEntry (+entry_type/payload)</span>
           </div>
         </div>
         <div class="ep-badge">🗑️ Danger</div>
@@ -1034,9 +1049,11 @@ footer {
       <div class="model-fields">
         <div class="mf"><span class="mf-name">id</span><span class="mf-type">integer</span><span class="mf-desc">Unique identifier, auto-incremented</span></div>
         <div class="mf"><span class="mf-name">user_id</span><span class="mf-type">string</span><span class="mf-desc">Internal user PK — derived from Firebase token server-side, never accepted from the client</span></div>
-        <div class="mf"><span class="mf-name">emoji</span><span class="mf-type">string</span><span class="mf-desc">Mood emoji selected by user (e.g. 😔 😊 😰)</span></div>
-        <div class="mf"><span class="mf-name">thoughts</span><span class="mf-type">string</span><span class="mf-desc">User's written thoughts and feelings</span></div>
-        <div class="mf"><span class="mf-name">ai_response</span><span class="mf-type">string</span><span class="mf-desc">Luna's empathetic AI-generated response</span></div>
+        <div class="mf"><span class="mf-name">entry_type</span><span class="mf-type">string</span><span class="mf-desc">One of mood_chat, breathing, sudoku, drawing, letter_read — defaults to mood_chat</span></div>
+        <div class="mf"><span class="mf-name">emoji</span><span class="mf-type">string</span><span class="mf-desc">Mood emoji selected by user (e.g. 😔 😊 😰) — unused for non-mood_chat entries</span></div>
+        <div class="mf"><span class="mf-name">thoughts</span><span class="mf-type">string</span><span class="mf-desc">User's written thoughts and feelings — unused for non-mood_chat entries</span></div>
+        <div class="mf"><span class="mf-name">ai_response</span><span class="mf-type">string</span><span class="mf-desc">Luna's empathetic AI-generated response — unused for non-mood_chat entries</span></div>
+        <div class="mf"><span class="mf-name">payload</span><span class="mf-type">object</span><span class="mf-desc">Per-type extra data: breathing {duration_seconds}, sudoku {solved, duration_seconds, difficulty}, drawing {thumbnail_url}, letter_read {} — unused ({}) for mood_chat</span></div>
         <div class="mf"><span class="mf-name">created_at</span><span class="mf-type">datetime</span><span class="mf-desc">ISO 8601 timestamp of when entry was created</span></div>
         <div class="mf"><span class="mf-name">crisis_flagged</span><span class="mf-type">boolean</span><span class="mf-desc">True if the entry's thoughts matched crisis-language detection — Groq was never called for this entry</span></div>
       </div>
@@ -1240,6 +1257,43 @@ entry = res.<span class="fn">json</span>()
   <span class="str">https://web-production-f8628
   .up.railway.app
   /api/companion/history/</span></pre>
+      </div>
+
+      <div class="cc">
+        <div class="cc-hdr">
+          <div class="cc-dots"><div class="cd"></div><div class="cd"></div><div class="cd"></div></div>
+          <div class="cc-lbl">cURL — activity</div>
+        </div>
+<pre><span class="cm"># Log a breathing exercise</span>
+<span class="fn">curl</span> <span class="kw">-X POST</span> \
+  <span class="str">https://web-production-f8628
+  .up.railway.app
+  /api/companion/activity/</span> \
+  <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
+  <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
+  <span class="kw">-d</span> <span class="str">'{"entry_type":"breathing","payload":{"duration_seconds":90}}'</span>
+
+<span class="cm"># Log a sudoku session</span>
+<span class="fn">curl</span> <span class="kw">-X POST</span> \
+  <span class="str">https://web-production-f8628
+  .up.railway.app
+  /api/companion/activity/</span> \
+  <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
+  <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
+  <span class="kw">-d</span> <span class="str">'{"entry_type":"sudoku","payload":{"solved":true,"duration_seconds":240,"difficulty":"medium"}}'</span>
+
+<span class="cm">// Response (201)</span>
+<span class="pu">{</span>
+  <span class="ky">"id"</span><span class="pu">:</span>         <span class="num">51</span><span class="pu">,</span>
+  <span class="ky">"user_id"</span><span class="pu">:</span>    <span class="str">"7"</span><span class="pu">,</span>
+  <span class="ky">"entry_type"</span><span class="pu">:</span> <span class="str">"sudoku"</span><span class="pu">,</span>
+  <span class="ky">"payload"</span><span class="pu">: {</span>
+    <span class="ky">"solved"</span><span class="pu">:</span>          <span class="kw">true</span><span class="pu">,</span>
+    <span class="ky">"duration_seconds"</span><span class="pu">:</span> <span class="num">240</span><span class="pu">,</span>
+    <span class="ky">"difficulty"</span><span class="pu">:</span>      <span class="str">"medium"</span>
+  <span class="pu">},</span>
+  <span class="ky">"created_at"</span><span class="pu">:</span> <span class="str">"2026-08-25T19:00:00Z"</span>
+<span class="pu">}</span></pre>
       </div>
 
       <div class="cc">

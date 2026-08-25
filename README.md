@@ -22,6 +22,7 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 - **Session detection** — Luna appends `[SESSION_END]` when the user feels resolved; clients use this to close sessions
 - **Crisis detection** — journal text is checked for crisis language *before* any AI call, in both English and Arabic, at both the endpoint and the AI-service layer; a match returns a static, localized, gender-correct support response (with real hotline info) and `crisis_flagged: true`, and is redacted before ever appearing in a weekly letter prompt — see [Crisis Detection](#crisis-detection)
 - **Mood journal** — every entry (emoji + thoughts + AI reply) is saved per user
+- **Multi-type journal entries** — the journal isn't just mood chats: it also logs completed activities — breathing exercises, sudoku, drawing, and weekly letter reads — via `entry_type` and a per-type `payload`, all through the same history/streak machinery
 - **Weekly letter** — Luna writes a personal weekly reflection based on recent entries (in the user's preferred language), including a real consecutive-day streak (not just an entry count)
 - **Per-user data isolation** — every entry is scoped to the authenticated user (`request.user`); no client-supplied identifier is ever accepted
 
@@ -31,7 +32,7 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 - **Custom user model** — `accounts.User` (email as `USERNAME_FIELD`), linked to Firebase via a nullable, unique `firebase_uid`, auto-created on first sight of a new Firebase identity
 - **Profile management** — view/update profile (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`, `preferred_language`); identity-bearing fields (`firebase_uid`, `email`, `username`, staff flags) are never client-writable
 - **Language preference** — `preferred_language` (`en`/`ar`, `TextChoices`, defaults to `en`) drives which language Luna responds in, everywhere — chat, weekly letter, crisis response, and fallback messages
-- **Account deletion** — deletes the Firebase identity, all of the user's `MoodEntry` rows, then the local Django record; fails closed (nothing deleted) if the Firebase-side call errors. Users who can't open the app can request the same deletion by email — see [Account Deletion](#account-deletion)
+- **Account deletion** — deletes the Firebase identity, all of the user's `JournalEntry` rows, then the local Django record; fails closed (nothing deleted) if the Firebase-side call errors. Users who can't open the app can request the same deletion by email — see [Account Deletion](#account-deletion)
 - **Consistent response envelope** — every endpoint returns `{"success": bool, "message": str, "data": {...}}` or `{"success": false, "message": str, "errors": {...}}`
 
 ### General
@@ -46,9 +47,9 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 
 Deployed on Railway at [web-production-f8628.up.railway.app](https://web-production-f8628.up.railway.app).
 
-The screenshots below are taken from this branch running locally and reflect the current homepage, privacy policy, and API docs — six clean endpoints, the `MoodEntry` schema, the request lifecycle, and the production stack, all on one page.
+The screenshots below are taken from this branch running locally and reflect the current homepage, privacy policy, and API docs — seven clean endpoints, the `JournalEntry` schema (including `entry_type`/`payload`), the request lifecycle, and the production stack, all on one page.
 
-![Lueur homepage — API overview, endpoints, MoodEntry schema, request lifecycle, and stack](docs/screenshots/homepage.png)
+![Lueur homepage — API overview, endpoints, JournalEntry schema, request lifecycle, and stack](docs/screenshots/homepage.png)
 
 ---
 
@@ -136,8 +137,9 @@ Every endpoint below requires `Authorization: Bearer <firebase-id-token>` **exce
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | POST | `/api/companion/generate/` | Submit mood, get Luna's AI response (scoped to the authenticated user). Crisis-language input short-circuits before any Groq call. |
-| GET | `/api/companion/history/` | Get all saved entries for the authenticated user |
+| GET | `/api/companion/history/` | Get all saved entries for the authenticated user — a mix of mood chats and logged activities |
 | GET | `/api/companion/weekly-letter/` | Get Luna's weekly reflection letter and real streak stats for the authenticated user |
+| POST | `/api/companion/activity/` | Log a completed activity (breathing, sudoku, drawing, or letter_read) — no AI call, no crisis check |
 
 ### Accounts — Base URL: `/api/accounts/`
 
@@ -215,6 +217,34 @@ When the user feels better or resolved, Luna's `ai_response` will end with `[SES
 ```
 
 If the Groq API is unavailable, the entry is still saved with a localized fallback message — English: `"Luna is taking a little break right now. Please try again in a moment 🌿"`, Arabic: `"لونا بحاجة إلى دقيقة الآن. حاول مرة أخرى بعد قليل 🌿"`.
+
+---
+
+### POST `/api/companion/activity/`
+
+Logs a completed activity — no AI call, no crisis check. `entry_type` is one of `breathing`, `sudoku`, `drawing`, `letter_read` (`mood_chat` is `generate/`'s job); `payload` shape is validated per type.
+
+**Request body**:
+
+```json
+{ "entry_type": "breathing", "payload": { "duration_seconds": 90 } }
+```
+
+```json
+{ "entry_type": "sudoku", "payload": { "solved": true, "duration_seconds": 240, "difficulty": "medium" } }
+```
+
+**Response (201)**:
+
+```json
+{
+  "id": 51,
+  "user_id": "7",
+  "entry_type": "sudoku",
+  "payload": { "solved": true, "duration_seconds": 240, "difficulty": "medium" },
+  "created_at": "2026-08-25T19:00:00Z"
+}
+```
 
 ---
 
@@ -337,7 +367,7 @@ or, on failure:
 
 ### Account Deletion
 
-**DELETE `/api/accounts/delete-account/`** (self-service, requires auth) — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then all matching `therapist.MoodEntry` rows, then the local Django row. If the Firebase-side call fails, the request returns `502` and nothing else is deleted (no orphaned Firebase identity, retryable).
+**DELETE `/api/accounts/delete-account/`** (self-service, requires auth) — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then all matching `therapist.JournalEntry` rows, then the local Django row. If the Firebase-side call fails, the request returns `502` and nothing else is deleted (no orphaned Firebase identity, retryable).
 
 **Web-based deletion request** (no app access required) — The privacy policy (`/privacy/`) promises a way to request deletion for users who can't open the app. That promise is backed by `accounts.services.delete_user_account()` — the exact same function the API endpoint calls — exposed as a management command:
 
@@ -394,9 +424,9 @@ lueur-backend/
 │   ├── wsgi.py
 │   └── asgi.py
 ├── therapist/
-│   ├── models.py          # MoodEntry model
-│   ├── views.py           # GenerateResponseAPIView, AllHistoryAPIView, WeeklyLetterAPIView, calculate_streak()
-│   ├── serializers.py     # MoodEntrySerializer, MoodEntryCreateSerializer (no user_id field)
+│   ├── models.py          # JournalEntry model (entry_type + payload for non-chat activities)
+│   ├── views.py           # GenerateResponseAPIView, AllHistoryAPIView, WeeklyLetterAPIView, ActivityEntryAPIView, calculate_streak()
+│   ├── serializers.py     # JournalEntrySerializer, JournalEntryCreateSerializer, ActivityEntryCreateSerializer (no user_id field)
 │   ├── ai_model.py        # Groq integration — generate_ai_response(), generate_weekly_letter(), shared _call_groq() retry helper
 │   ├── luna_prompts.py    # LunaPromptProvider — language/gender-aware prompts, apply_gender_variant(), placeholder safety checks
 │   ├── crisis.py          # contains_crisis_language(), CRISIS_RESPONSE — English crisis detection (frozen, never edited)
@@ -485,7 +515,7 @@ heroku run python manage.py migrate
 
 A staff-only operational dashboard is available at `/admin/` (stock Django Admin — no third-party theme). Staff (`is_staff=True`) accounts can:
 
-- Browse and search `MoodEntry` journal content (filterable by date and crisis-flagged status)
+- Browse and search `JournalEntry` journal content (filterable by date, entry_type, and crisis-flagged status)
 - Browse `User` accounts, with a per-user journal-entry count linking to that user's filtered entries
 - Run "Delete account and journal entries" on a selected user — a confirmation-gated action that calls the same `delete_user_account()` used by the self-service API and the `delete_user_by_email` management command
 - View a live "Overview" summary on the admin index page: active users, journal entries in the last 7/30 days, crisis-flagged entries in the last 7/30 days, and the average check-in streak across users with at least one entry
