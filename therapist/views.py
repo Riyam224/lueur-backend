@@ -28,7 +28,7 @@ from datetime import timedelta
 from django.utils import timezone
 from .models import JournalEntry
 from rest_framework.throttling import ScopedRateThrottle
-from .throttles import LunaChatRateThrottle
+from .throttles import LunaChatRateThrottle, DeleteAllJournalEntriesRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -265,6 +265,68 @@ Each entry contains:
             user_id=str(request.user.id)
         ).order_by("-created_at")
         return Response(JournalEntrySerializer(entries, many=True).data)
+
+
+class DeleteJournalEntryAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_scope = "user"
+
+    @extend_schema(
+        tags=["Companion"],
+        summary="Delete a journal entry",
+        description="Deletes a single journal entry owned by the authenticated user.",
+        responses={
+            204: OpenApiResponse(description="Entry deleted"),
+            401: OpenApiResponse(description="Authentication required"),
+            404: OpenApiResponse(description="Entry not found"),
+        },
+    )
+    def delete(self, request, entry_id):
+        deleted_count, _ = JournalEntry.objects.filter(
+            user_id=str(request.user.id), pk=entry_id
+        ).delete()
+        if deleted_count == 0:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DeleteAllJournalEntriesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle, DeleteAllJournalEntriesRateThrottle]
+    throttle_scope = "delete_all"
+
+    @extend_schema(
+        tags=["Companion"],
+        summary="Delete all journal entries",
+        description="""
+Permanently deletes every journal entry owned by the authenticated user.
+Requires `{"confirm": true}` in the request body to avoid accidental
+bulk deletion.
+        """,
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {"confirm": {"type": "boolean", "example": True}},
+                "required": ["confirm"],
+            }
+        },
+        responses={
+            200: OpenApiResponse(description="Entries deleted"),
+            400: OpenApiResponse(description="Missing or false 'confirm'"),
+            401: OpenApiResponse(description="Authentication required"),
+        },
+    )
+    def delete(self, request):
+        if request.data.get("confirm") is not True:
+            return Response(
+                {"confirm": "You must send {\"confirm\": true} to delete all entries."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        deleted_count, _ = JournalEntry.objects.filter(
+            user_id=str(request.user.id)
+        ).delete()
+        return Response({"deleted_count": deleted_count}, status=status.HTTP_200_OK)
 
 
 def calculate_streak(user_id, now=None):

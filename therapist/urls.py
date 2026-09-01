@@ -4,6 +4,8 @@ from .views import (
     AllHistoryAPIView,
     WeeklyLetterAPIView,
     ActivityEntryAPIView,
+    DeleteJournalEntryAPIView,
+    DeleteAllJournalEntriesAPIView,
 )
 
 urlpatterns = [
@@ -11,4 +13,6 @@ urlpatterns = [
     path("history/", AllHistoryAPIView.as_view()),
     path("weekly-letter/", WeeklyLetterAPIView.as_view()),
     path("activity/", ActivityEntryAPIView.as_view()),
+    path("entries/delete-all/", DeleteAllJournalEntriesAPIView.as_view()),
+    path("entries/<int:entry_id>/delete/", DeleteJournalEntryAPIView.as_view()),
 ]

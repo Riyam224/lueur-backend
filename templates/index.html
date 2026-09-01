@@ -847,7 +847,7 @@ footer {
       <div class="logo-dot"></div>
       Lueur API
     </a>
-    <div class="nav-v">v1.1.0</div>
+    <div class="nav-v">v1.2.0</div>
     <div class="nav-links">
       <a href="#endpoints" class="nl">Endpoints</a>
       <a href="#features"  class="nl">Stack</a>
@@ -879,7 +879,7 @@ footer {
           <a href="/api/redoc/" class="btn-s">📖 ReDoc Docs</a>
         </div>
         <div class="stats">
-          <div><div class="stat-n">7</div><div class="stat-l">Endpoints</div></div>
+          <div><div class="stat-n">9</div><div class="stat-l">Endpoints</div></div>
           <div><div class="stat-n">&lt;1s</div><div class="stat-l">Response time</div></div>
           <div><div class="stat-n">REST</div><div class="stat-l">Standard</div></div>
           <div><div class="stat-n">🔐</div><div class="stat-l">Firebase Auth required</div></div>
@@ -929,7 +929,7 @@ footer {
   <div class="wrap">
     <div class="rv">
       <span class="sec-tag">// endpoints</span>
-      <h2>Seven clean endpoints.<br>Infinite emotional support.</h2>
+      <h2>Nine clean endpoints.<br>Infinite emotional support.</h2>
       <p class="sec-desc">Firebase-authenticated REST API — all endpoints require a Bearer token. Identity is derived server-side from the verified Firebase token.</p>
     </div>
 
@@ -977,6 +977,35 @@ footer {
           </div>
         </div>
         <div class="ep-badge">🧩 Activity</div>
+      </div>
+
+      <div class="ep">
+        <div class="mth m-delete">DELETE</div>
+        <div>
+          <div class="ep-path">/api/companion/entries/&lt;id&gt;/delete/</div>
+          <div class="ep-desc">Deletes a single journal entry owned by the authenticated user. Ownership is checked in the same query as the lookup — a wrong or another user's <code>id</code> returns a plain 404, never leaking whether the entry exists for someone else.</div>
+          <div class="ep-pills">
+            <span class="pill pill-p">Auth: Bearer token</span>
+            <span class="pill">Scoped: request.user only</span>
+            <span class="pill">Irreversible</span>
+          </div>
+        </div>
+        <div class="ep-badge">🗑️ Danger</div>
+      </div>
+
+      <div class="ep">
+        <div class="mth m-delete">DELETE</div>
+        <div>
+          <div class="ep-path">/api/companion/entries/delete-all/</div>
+          <div class="ep-desc">Permanently deletes every journal entry owned by the authenticated user. Requires <code>{"confirm": true}</code> in the body — missing or false returns 400 without deleting anything. Rate-limited to 5/minute given how destructive it is.</div>
+          <div class="ep-pills">
+            <span class="pill">Body: confirm</span>
+            <span class="pill pill-p">Auth: Bearer token</span>
+            <span class="pill pill-g">Returns: deleted_count</span>
+            <span class="pill">Irreversible</span>
+          </div>
+        </div>
+        <div class="ep-badge">🗑️ Danger</div>
       </div>
 
       <div class="ep">
@@ -1294,6 +1323,32 @@ entry = res.<span class="fn">json</span>()
   <span class="pu">},</span>
   <span class="ky">"created_at"</span><span class="pu">:</span> <span class="str">"2026-08-25T19:00:00Z"</span>
 <span class="pu">}</span></pre>
+      </div>
+
+      <div class="cc">
+        <div class="cc-hdr">
+          <div class="cc-dots"><div class="cd"></div><div class="cd"></div><div class="cd"></div></div>
+          <div class="cc-lbl">cURL — delete entries</div>
+        </div>
+<pre><span class="cm"># Delete one entry (owned by the authenticated user)</span>
+<span class="fn">curl</span> <span class="kw">-X DELETE</span> \
+  <span class="str">https://web-production-f8628
+  .up.railway.app
+  /api/companion/entries/51/delete/</span> \
+  <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span>
+<span class="cm"># 204 No Content on success, 404 if not yours / doesn't exist</span>
+
+<span class="cm"># Delete every entry for the authenticated user</span>
+<span class="fn">curl</span> <span class="kw">-X DELETE</span> \
+  <span class="str">https://web-production-f8628
+  .up.railway.app
+  /api/companion/entries/delete-all/</span> \
+  <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
+  <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
+  <span class="kw">-d</span> <span class="str">'{"confirm": true}'</span>
+
+<span class="cm">// Response (200)</span>
+<span class="pu">{</span> <span class="ky">"deleted_count"</span><span class="pu">:</span> <span class="num">12</span> <span class="pu">}</span></pre>
       </div>
 
       <div class="cc">

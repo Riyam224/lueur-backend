@@ -169,6 +169,7 @@ REST_FRAMEWORK = {
         "user": "60/minute",
         "ai_generate": "20/minute",
         "luna_chat": "20/min",
+        "delete_all": "5/minute",
     },
 }
 

@@ -25,6 +25,7 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 - **Multi-type journal entries** — the journal isn't just mood chats: it also logs completed activities — breathing exercises, sudoku, drawing, and weekly letter reads — via `entry_type` and a per-type `payload`, all through the same history/streak machinery
 - **Weekly letter** — Luna writes a personal weekly reflection based on recent entries (in the user's preferred language), including a real consecutive-day streak (not just an entry count)
 - **Per-user data isolation** — every entry is scoped to the authenticated user (`request.user`); no client-supplied identifier is ever accepted
+- **Entry deletion** — delete a single journal entry by id, or every entry at once, both hard-deleted and scoped strictly to the authenticated user; the bulk delete requires an explicit `{"confirm": true}` body and is rate-limited to 5/minute — see [Deleting Journal Entries](#deleting-journal-entries)
 
 ### Accounts (`/api/accounts/`)
 
@@ -47,7 +48,9 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 
 Deployed on Railway at [web-production-f8628.up.railway.app](https://web-production-f8628.up.railway.app).
 
-The screenshots below are taken from this branch running locally and reflect the current homepage, privacy policy, and API docs — seven clean endpoints, the `JournalEntry` schema (including `entry_type`/`payload`), the request lifecycle, and the production stack, all on one page.
+The screenshots below are taken from this branch running locally and reflect the current homepage, privacy policy, and API docs — nine clean endpoints, the `JournalEntry` schema (including `entry_type`/`payload`), the request lifecycle, and the production stack, all on one page.
+
+> **Note:** the screenshots themselves predate the two `entries/` delete endpoints added below and haven't been regenerated in this change — the endpoint count in the text above is accurate, but the images won't show the two new DELETE cards until they're refreshed.
 
 ![Lueur homepage — API overview, endpoints, JournalEntry schema, request lifecycle, and stack](docs/screenshots/homepage.png)
 
@@ -140,6 +143,8 @@ Every endpoint below requires `Authorization: Bearer <firebase-id-token>` **exce
 | GET | `/api/companion/history/` | Get all saved entries for the authenticated user — a mix of mood chats and logged activities |
 | GET | `/api/companion/weekly-letter/` | Get Luna's weekly reflection letter and real streak stats for the authenticated user |
 | POST | `/api/companion/activity/` | Log a completed activity (breathing, sudoku, drawing, or letter_read) — no AI call, no crisis check |
+| DELETE | `/api/companion/entries/<id>/delete/` | Delete one journal entry owned by the authenticated user. 404 if it doesn't exist or belongs to someone else |
+| DELETE | `/api/companion/entries/delete-all/` | Delete every journal entry owned by the authenticated user. Requires `{"confirm": true}`; rate-limited to 5/minute |
 
 ### Accounts — Base URL: `/api/accounts/`
 
@@ -245,6 +250,43 @@ Logs a completed activity — no AI call, no crisis check. `entry_type` is one o
   "created_at": "2026-08-25T19:00:00Z"
 }
 ```
+
+---
+
+### Deleting Journal Entries
+
+Both endpoints are hard deletes — there is no soft-delete flag anywhere in this codebase, matching `DeleteAccountView`'s convention. Both are scoped to `request.user`; neither accepts a `user_id` from the client.
+
+**DELETE `/api/companion/entries/<id>/delete/`** — deletes a single entry. The lookup and the ownership check happen in one query (`JournalEntry.objects.filter(user_id=str(request.user.id), pk=entry_id)`), never a plain `pk`-only lookup — so an `id` that exists but belongs to another user returns the same `404` as an `id` that doesn't exist at all, and never leaks which case it was.
+
+```bash
+curl -X DELETE https://web-production-f8628.up.railway.app/api/companion/entries/51/delete/ \
+  -H "Authorization: Bearer <firebase_id_token>"
+```
+
+- **204 No Content** — deleted
+- **404** — no matching entry for this user (wrong id, or someone else's entry)
+- **401** — missing/invalid/expired token
+
+**DELETE `/api/companion/entries/delete-all/`** — deletes every entry owned by the authenticated user. Requires an explicit confirmation body; without it, nothing is deleted:
+
+```bash
+curl -X DELETE https://web-production-f8628.up.railway.app/api/companion/entries/delete-all/ \
+  -H "Authorization: Bearer <firebase_id_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"confirm": true}'
+```
+
+```json
+{ "deleted_count": 12 }
+```
+
+- **200** — `{"deleted_count": N}`, even if `N` is `0`
+- **400** — `confirm` missing or `false` — nothing is deleted
+- **401** — missing/invalid/expired token
+- **429** — throttled past `delete_all`'s `5/minute` scope (`DeleteAllJournalEntriesRateThrottle` in `therapist/throttles.py`, tighter than the global `60/minute` default since this is destructive)
+
+Both views are plain `APIView` subclasses (not `ModelViewSet`/generics), matching the rest of `therapist/views.py`.
 
 ---
 
@@ -515,7 +557,7 @@ heroku run python manage.py migrate
 
 A staff-only operational dashboard is available at `/admin/` (stock Django Admin — no third-party theme). Staff (`is_staff=True`) accounts can:
 
-- Browse and search `JournalEntry` journal content (filterable by date, entry_type, and crisis-flagged status)
+- Browse and search `JournalEntry` journal content (filterable by date, entry_type, and crisis-flagged status), including deleting individual rows or a bulk selection via the stock Django Admin delete action — this is separate from the self-service `entries/<id>/delete/` and `entries/delete-all/` API endpoints, which are scoped to a non-staff user's own entries only
 - Browse `User` accounts, with a per-user journal-entry count linking to that user's filtered entries
 - Run "Delete account and journal entries" on a selected user — a confirmation-gated action that calls the same `delete_user_account()` used by the self-service API and the `delete_user_by_email` management command
 - View a live "Overview" summary on the admin index page: active users, journal entries in the last 7/30 days, crisis-flagged entries in the last 7/30 days, and the average check-in streak across users with at least one entry
@@ -533,8 +575,8 @@ No non-staff account can reach `/admin/` — access is gated by Django's standar
 ## Testing
 
 ```bash
-python manage.py test           # full suite (114+ tests as of Jul 2026 — check runner output for current count)
-python manage.py test therapist # generate/history/weekly-letter, bilingual crisis detection, localization/gender, streak calc
+python manage.py test           # full suite (120+ tests as of Sep 2026 — check runner output for current count)
+python manage.py test therapist # generate/history/weekly-letter/activity, entry deletion (single + bulk), bilingual crisis detection, localization/gender, streak calc
 python manage.py test accounts  # profile, preferred_language/gender, delete-account, verify, delete_user_by_email command
 ```
 

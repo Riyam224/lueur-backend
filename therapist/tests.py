@@ -299,6 +299,137 @@ class TherapistAuthIsolationTests(TestCase):
         self.assertIn("had a good day", formatted_entries_sent)
 
 
+class DeleteJournalEntryTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        patcher = patch("core.firebase_auth.auth.verify_id_token")
+        self.mock_verify = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.mock_verify.side_effect = lambda token: {
+            "uid": token.removeprefix("faketoken-"),
+            "email": f"{token.removeprefix('faketoken-')}@example.com",
+        }
+
+    def test_delete_requires_auth_returns_401_without_token(self):
+        response = self.client.delete("/api/companion/entries/1/delete/")
+        self.assertEqual(response.status_code, 401)
+
+    def test_owner_can_delete_own_entry(self):
+        from accounts.models import User
+
+        self.client.get("/api/companion/history/", **_auth_header("user-a"))
+        user_a = User.objects.get(firebase_uid="user-a")
+        entry = JournalEntry.objects.create(
+            user_id=str(user_a.id), emoji="😊", thoughts="mine"
+        )
+
+        response = self.client.delete(
+            f"/api/companion/entries/{entry.id}/delete/", **_auth_header("user-a")
+        )
+
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(JournalEntry.objects.filter(pk=entry.id).exists())
+
+    def test_delete_nonexistent_id_returns_404(self):
+        response = self.client.delete(
+            "/api/companion/entries/999999/delete/", **_auth_header("user-a")
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_delete_another_users_entry_returns_404_and_does_not_delete(self):
+        from accounts.models import User
+
+        self.client.get("/api/companion/history/", **_auth_header("user-a"))
+        self.client.get("/api/companion/history/", **_auth_header("user-b"))
+        user_b = User.objects.get(firebase_uid="user-b")
+        entry = JournalEntry.objects.create(
+            user_id=str(user_b.id), emoji="😊", thoughts="not yours"
+        )
+
+        response = self.client.delete(
+            f"/api/companion/entries/{entry.id}/delete/", **_auth_header("user-a")
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(JournalEntry.objects.filter(pk=entry.id).exists())
+
+
+class DeleteAllJournalEntriesTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.client = APIClient()
+        patcher = patch("core.firebase_auth.auth.verify_id_token")
+        self.mock_verify = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.mock_verify.side_effect = lambda token: {
+            "uid": token.removeprefix("faketoken-"),
+            "email": f"{token.removeprefix('faketoken-')}@example.com",
+        }
+
+    def test_delete_all_requires_auth_returns_401_without_token(self):
+        response = self.client.delete(
+            "/api/companion/entries/delete-all/", {"confirm": True}, format="json"
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_missing_confirm_returns_400_and_deletes_nothing(self):
+        from accounts.models import User
+
+        self.client.get("/api/companion/history/", **_auth_header("user-a"))
+        user_a = User.objects.get(firebase_uid="user-a")
+        JournalEntry.objects.create(user_id=str(user_a.id), emoji="😊", thoughts="a")
+
+        response = self.client.delete(
+            "/api/companion/entries/delete-all/", **_auth_header("user-a")
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(user_a.id)).count(), 1)
+
+    def test_confirm_false_returns_400_and_deletes_nothing(self):
+        from accounts.models import User
+
+        self.client.get("/api/companion/history/", **_auth_header("user-a"))
+        user_a = User.objects.get(firebase_uid="user-a")
+        JournalEntry.objects.create(user_id=str(user_a.id), emoji="😊", thoughts="a")
+
+        response = self.client.delete(
+            "/api/companion/entries/delete-all/",
+            {"confirm": False},
+            format="json",
+            **_auth_header("user-a"),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(user_a.id)).count(), 1)
+
+    def test_confirm_true_deletes_only_own_entries(self):
+        from accounts.models import User
+
+        self.client.get("/api/companion/history/", **_auth_header("user-a"))
+        self.client.get("/api/companion/history/", **_auth_header("user-b"))
+        user_a = User.objects.get(firebase_uid="user-a")
+        user_b = User.objects.get(firebase_uid="user-b")
+        JournalEntry.objects.create(user_id=str(user_a.id), emoji="😊", thoughts="a1")
+        JournalEntry.objects.create(user_id=str(user_a.id), emoji="😢", thoughts="a2")
+        other_entry = JournalEntry.objects.create(
+            user_id=str(user_b.id), emoji="😊", thoughts="b1"
+        )
+
+        response = self.client.delete(
+            "/api/companion/entries/delete-all/",
+            {"confirm": True},
+            format="json",
+            **_auth_header("user-a"),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["deleted_count"], 2)
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(user_a.id)).count(), 0)
+        self.assertTrue(JournalEntry.objects.filter(pk=other_entry.id).exists())
+
+
 class JournalEntryAdminConfigTests(TestCase):
     def test_crisis_flagged_and_date_hierarchy_filters_configured(self):
         self.assertIn("crisis_flagged", JournalEntryAdmin.list_filter)

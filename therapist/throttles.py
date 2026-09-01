@@ -7,3 +7,10 @@ class LunaChatRateThrottle(UserRateThrottle):
     any single user's burst rather than measuring overall endpoint traffic."""
 
     scope = "luna_chat"
+
+
+class DeleteAllJournalEntriesRateThrottle(UserRateThrottle):
+    """Per-user cap on bulk-delete calls — deliberately tighter than the
+    60/minute default since this endpoint is destructive."""
+
+    scope = "delete_all"
