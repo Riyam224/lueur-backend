@@ -1,20 +1,66 @@
-# Secrets / credentials
+# ============================================================
+# Secrets & credentials
+# ============================================================
 .env
-firebase-credentials.json
+.env.*
+!.env.example
 
-# Python
+# Firebase — cover any naming variant, not just the current filename
+firebase-credentials.json
+firebase-adminsdk*.json
+firebase-service-account*.json
+serviceAccountKey.json
+*firebase*credential*.json
+
+# Keys & certs
+*.pem
+*.key
+*.p12
+*.p8
+credentials.json
+
+# ============================================================
+# Django
+# ============================================================
 __pycache__/
 *.pyc
-venv/
-.venv/
-
-# Django
+*.pyo
+*.pyd
 db.sqlite3
-staticfiles/
+db.sqlite3-journal
+/staticfiles/
+/media/
+local_settings.py
 
-# IDE / tooling
-.claude/
-.specify/
+# ============================================================
+# Virtual environments
+# ============================================================
+.venv/
+venv/
+env/
+ENV/
 
-# Misc
+# ============================================================
+# Railway / deployment
+# ============================================================
+.railway/
+
+# ============================================================
+# IDE
+# ============================================================
+.idea/
+.vscode/
+
+# ============================================================
+# Logs — may contain PII if debug logging is ever verbose
+# ============================================================
 *.log
+logs/
+
+# ============================================================
+# Test / coverage artifacts
+# ============================================================
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/

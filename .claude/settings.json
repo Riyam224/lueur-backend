@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node run.js /tmp/playwright-screenshot-home.js)",
+      "Bash(node run.js /tmp/playwright-screenshot-sections.js)",
+      "Bash(node run.js /tmp/playwright-screenshot-zoom.js)",
+      "Bash(railway status *)",
+      "Bash(git commit -m ' *)"
+    ],
+    "additionalDirectories": [
+      "/tmp",
+      "/private/tmp"
+    ]
+  }
+}
