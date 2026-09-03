@@ -41,6 +41,18 @@ urlpatterns = [
     path("api/companion/", include("therapist.urls")),
     path("api/accounts/", include("accounts.urls")),
     path("api/auth/verify/", VerifyFirebaseTokenView.as_view(), name="verify-token-legacy"),
+    # Temporary dual-routing: /api/v1/ mirrors /api/ below during the
+    # app's migration to versioned endpoints. The duplicate name= values
+    # (me, delete-account, verify-token) across both includes are
+    # harmless since nothing in this codebase calls reverse() against
+    # them — but don't add a reverse() call against these names without
+    # first removing one of the two registrations, since resolution order
+    # would pick whichever wins, not necessarily the one intended.
+    # Remove the unprefixed /api/ routes below once all deployed app
+    # versions have migrated to /api/v1/.
+    path("api/v1/companion/", include("therapist.urls")),
+    path("api/v1/accounts/", include("accounts.urls")),
+    path("api/v1/auth/verify/", VerifyFirebaseTokenView.as_view(), name="verify-token-legacy-v1"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
