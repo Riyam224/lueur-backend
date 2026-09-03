@@ -6,6 +6,7 @@ from django.core.management.base import CommandError
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from core.test_utils import make_v1_variant
 from therapist.models import JournalEntry
 
 from .admin import UserAdmin
@@ -377,6 +378,14 @@ class DeleteUserByEmailCommandTests(TestCase):
             call_command("delete_user_by_email", "keepme@example.com")
 
         self.assertTrue(User.objects.filter(email="keepme@example.com").exists())
+
+
+# /api/v1/... parity — same tests, run against the versioned prefix to
+# confirm it behaves identically to the existing /api/... routes.
+FirebaseAuthTestsV1 = make_v1_variant(FirebaseAuthTests)
+ProfileTestsV1 = make_v1_variant(ProfileTests)
+DeleteAccountTestsV1 = make_v1_variant(DeleteAccountTests)
+VerifyFirebaseTokenTestsV1 = make_v1_variant(VerifyFirebaseTokenTests)
 
 
 class UserAdminConfigTests(TestCase):

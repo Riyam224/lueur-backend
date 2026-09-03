@@ -7,6 +7,8 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from core.test_utils import make_v1_variant
+
 from .admin import JournalEntryAdmin
 from .crisis import contains_crisis_language, CRISIS_RESPONSE
 from .crisis_ar import (
@@ -924,3 +926,13 @@ class BudgetGuardArabicFallbackTests(TestCase):
 
         reply = generate_ai_response("😊", "hi", preferred_language="ar")
         self.assertIn(reply, BUDGET_EXCEEDED_MESSAGES_AR)
+
+
+# /api/v1/... parity — same tests, run against the versioned prefix to
+# confirm it behaves identically to the existing /api/... routes.
+TherapistAuthIsolationTestsV1 = make_v1_variant(TherapistAuthIsolationTests)
+DeleteJournalEntryTestsV1 = make_v1_variant(DeleteJournalEntryTests)
+DeleteAllJournalEntriesTestsV1 = make_v1_variant(DeleteAllJournalEntriesTests)
+CrisisArPipelineIntegrationTestsV1 = make_v1_variant(CrisisArPipelineIntegrationTests)
+CrisisViewLocalizationTestsV1 = make_v1_variant(CrisisViewLocalizationTests)
+LunaChatThrottleTestsV1 = make_v1_variant(LunaChatThrottleTests)
