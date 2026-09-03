@@ -257,6 +257,59 @@ class DeleteAccountTests(TestCase):
         self.assertTrue(User.objects.filter(firebase_uid="alice").exists())
 
 
+class TokenRevocationAfterDeletionTests(TestCase):
+    """A Firebase ID token issued before account deletion must stop working
+    immediately, not linger until its ~1 hour natural expiry. FirebaseAuthentication
+    passes check_revoked=True to verify_id_token() so deletion is checked live
+    against Firebase, not just the token's signature/expiry.
+
+    Per firebase_admin's source (_auth_client.py: check_revoked calls
+    get_user(uid) internally), a token for a *fully deleted* user surfaces as
+    UserNotFoundError, not RevokedIdTokenError/UserDisabledError (those apply
+    to revoke_refresh_tokens()/disabled accounts, where the user row still
+    exists). FirebaseAuthentication's existing `except Exception` already
+    turns any of these into a 401 — this test locks in that behavior for the
+    specific deleted-user case.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    @patch("core.firebase_auth.auth.verify_id_token")
+    def test_token_issued_before_deletion_is_rejected_and_does_not_resurrect_user(
+        self, mock_verify, mock_firebase_delete
+    ):
+        from accounts.services import delete_user_account
+
+        claims = {"uid": "carol", "email": "carol@example.com"}
+        mock_verify.return_value = claims
+        auth_header = _auth_header("carol")
+
+        response = self.client.get("/api/v1/accounts/me/", **auth_header)
+        self.assertEqual(response.status_code, 200)
+        carol = User.objects.get(firebase_uid="carol")
+
+        delete_user_account(carol)
+        mock_firebase_delete.assert_called_once_with("carol")
+        self.assertFalse(User.objects.filter(firebase_uid="carol").exists())
+
+        from firebase_admin.auth import UserNotFoundError
+
+        mock_verify.side_effect = UserNotFoundError("No user record found for the given identifier.")
+
+        response = self.client.get("/api/v1/accounts/me/", **auth_header)
+
+        self.assertEqual(response.status_code, 401)
+        self.assertFalse(User.objects.filter(firebase_uid="carol").exists())
+
+    @patch("core.firebase_auth.auth.verify_id_token")
+    def test_verify_id_token_called_with_check_revoked_true(self, mock_verify):
+        mock_verify.return_value = {"uid": "dave", "email": "dave@example.com"}
+        self.client.get("/api/v1/accounts/me/", **_auth_header("dave"))
+        mock_verify.assert_called_once_with("faketoken-dave", check_revoked=True)
+
+
 class VerifyFirebaseTokenTests(TestCase):
     def setUp(self):
         self.client = APIClient()

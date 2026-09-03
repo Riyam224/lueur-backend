@@ -76,7 +76,7 @@ class FirebaseAuthentication(BaseAuthentication):
             return None
 
         try:
-            decoded = auth.verify_id_token(token)
+            decoded = auth.verify_id_token(token, check_revoked=True)
         except Exception as exc:
             logger.warning("Firebase token verification failed: %s", exc)
             raise AuthenticationFailed("Invalid or expired token.")

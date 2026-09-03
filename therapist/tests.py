@@ -106,7 +106,7 @@ class TherapistAuthIsolationTests(TestCase):
         patcher = patch("core.firebase_auth.auth.verify_id_token")
         self.mock_verify = patcher.start()
         self.addCleanup(patcher.stop)
-        self.mock_verify.side_effect = lambda token: {
+        self.mock_verify.side_effect = lambda token, **kwargs: {
             "uid": token.removeprefix("faketoken-"),
             "email": f"{token.removeprefix('faketoken-')}@example.com",
         }
@@ -307,7 +307,7 @@ class DeleteJournalEntryTests(TestCase):
         patcher = patch("core.firebase_auth.auth.verify_id_token")
         self.mock_verify = patcher.start()
         self.addCleanup(patcher.stop)
-        self.mock_verify.side_effect = lambda token: {
+        self.mock_verify.side_effect = lambda token, **kwargs: {
             "uid": token.removeprefix("faketoken-"),
             "email": f"{token.removeprefix('faketoken-')}@example.com",
         }
@@ -364,7 +364,7 @@ class DeleteAllJournalEntriesTests(TestCase):
         patcher = patch("core.firebase_auth.auth.verify_id_token")
         self.mock_verify = patcher.start()
         self.addCleanup(patcher.stop)
-        self.mock_verify.side_effect = lambda token: {
+        self.mock_verify.side_effect = lambda token, **kwargs: {
             "uid": token.removeprefix("faketoken-"),
             "email": f"{token.removeprefix('faketoken-')}@example.com",
         }
@@ -716,7 +716,7 @@ class CrisisArPipelineIntegrationTests(TestCase):
         patcher = patch("core.firebase_auth.auth.verify_id_token")
         self.mock_verify = patcher.start()
         self.addCleanup(patcher.stop)
-        self.mock_verify.side_effect = lambda token: {
+        self.mock_verify.side_effect = lambda token, **kwargs: {
             "uid": token.removeprefix("faketoken-"),
             "email": f"{token.removeprefix('faketoken-')}@example.com",
         }
