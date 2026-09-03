@@ -891,7 +891,7 @@ footer {
         <div class="cc">
           <div class="cc-hdr">
             <div class="cc-dots"><div class="cd"></div><div class="cd"></div><div class="cd"></div></div>
-            <div class="cc-lbl">POST /api/companion/generate/</div>
+            <div class="cc-lbl">POST /api/v1/companion/generate/</div>
             <div class="cc-ok">200 OK</div>
           </div>
 <pre><span class="cm">// Headers</span>
@@ -930,14 +930,14 @@ footer {
     <div class="rv">
       <span class="sec-tag">// endpoints</span>
       <h2>Nine clean endpoints.<br>Infinite emotional support.</h2>
-      <p class="sec-desc">Firebase-authenticated REST API — all endpoints require a Bearer token. Identity is derived server-side from the verified Firebase token.</p>
+      <p class="sec-desc">Firebase-authenticated REST API — all endpoints require a Bearer token. Identity is derived server-side from the verified Firebase token. <code>/api/v1/</code> is the current path prefix; the unprefixed <code>/api/</code> routes still work temporarily for app versions that haven't migrated yet.</p>
     </div>
 
     <div class="ep-grid rv">
       <div class="ep">
         <div class="mth m-post">POST</div>
         <div>
-          <div class="ep-path">/api/companion/generate/</div>
+          <div class="ep-path">/api/v1/companion/generate/</div>
           <div class="ep-desc">Send an emoji + thoughts and receive a warm, empathetic AI response from Luna. Pass optional conversation history for multi-turn context. Luna signals a resolved session with <code>[SESSION_END]</code> in her reply. Crisis-language is detected before any AI call and short-circuits to a static support response with <code>crisis_flagged: true</code>.</div>
           <div class="ep-pills">
             <span class="pill">Body: emoji, thoughts</span>
@@ -953,7 +953,7 @@ footer {
       <div class="ep">
         <div class="mth m-get">GET</div>
         <div>
-          <div class="ep-path">/api/companion/history/</div>
+          <div class="ep-path">/api/v1/companion/history/</div>
           <div class="ep-desc">Retrieve journal entries for the authenticated user, ordered by most recent first — a mix of mood chats and logged activities (breathing, sudoku, drawing, letter reads). Each entry includes entry_type and payload alongside emoji, thoughts, Luna's AI response, and timestamp.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
@@ -967,7 +967,7 @@ footer {
       <div class="ep">
         <div class="mth m-post">POST</div>
         <div>
-          <div class="ep-path">/api/companion/activity/</div>
+          <div class="ep-path">/api/v1/companion/activity/</div>
           <div class="ep-desc">Log a completed activity — breathing exercise, sudoku, drawing, or weekly letter read — to the authenticated user's journal. No AI call and no crisis check; payload shape is validated per entry_type.</div>
           <div class="ep-pills">
             <span class="pill">Body: entry_type, payload</span>
@@ -982,7 +982,7 @@ footer {
       <div class="ep">
         <div class="mth m-delete">DELETE</div>
         <div>
-          <div class="ep-path">/api/companion/entries/&lt;id&gt;/delete/</div>
+          <div class="ep-path">/api/v1/companion/entries/&lt;id&gt;/delete/</div>
           <div class="ep-desc">Deletes a single journal entry owned by the authenticated user. Ownership is checked in the same query as the lookup — a wrong or another user's <code>id</code> returns a plain 404, never leaking whether the entry exists for someone else.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
@@ -996,7 +996,7 @@ footer {
       <div class="ep">
         <div class="mth m-delete">DELETE</div>
         <div>
-          <div class="ep-path">/api/companion/entries/delete-all/</div>
+          <div class="ep-path">/api/v1/companion/entries/delete-all/</div>
           <div class="ep-desc">Permanently deletes every journal entry owned by the authenticated user. Requires <code>{"confirm": true}</code> in the body — missing or false returns 400 without deleting anything. Rate-limited to 5/minute given how destructive it is.</div>
           <div class="ep-pills">
             <span class="pill">Body: confirm</span>
@@ -1011,7 +1011,7 @@ footer {
       <div class="ep">
         <div class="mth m-get">GET</div>
         <div>
-          <div class="ep-path">/api/accounts/me/</div>
+          <div class="ep-path">/api/v1/accounts/me/</div>
           <div class="ep-desc">Get or update the authenticated user's profile. PATCH accepts <code>full_name</code>, <code>phone_number</code>, <code>bio</code>, <code>date_of_birth</code>, <code>gender</code>. Firebase identity fields are read-only.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
@@ -1025,7 +1025,7 @@ footer {
       <div class="ep">
         <div class="mth m-delete">DELETE</div>
         <div>
-          <div class="ep-path">/api/accounts/delete-account/</div>
+          <div class="ep-path">/api/v1/accounts/delete-account/</div>
           <div class="ep-desc">Permanently deletes the authenticated user's Firebase identity, journal entries, and local account. Firebase deletion is attempted first; if it fails nothing else is deleted and a 502 is returned. Users who can't open the app can request the same deletion by email — see the Privacy Policy.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
@@ -1039,8 +1039,8 @@ footer {
       <div class="ep">
         <div class="mth m-post">POST</div>
         <div>
-          <div class="ep-path">/api/accounts/verify/</div>
-          <div class="ep-desc">Verifies a Firebase ID token and returns the linked Django user, creating it on first sight. Called right after Firebase sign-in/sign-up. Also reachable at <code>/api/auth/verify/</code> for existing clients.</div>
+          <div class="ep-path">/api/v1/accounts/verify/</div>
+          <div class="ep-desc">Verifies a Firebase ID token and returns the linked Django user, creating it on first sight. Called right after Firebase sign-in/sign-up. Also reachable at <code>/api/v1/auth/verify/</code> for existing clients.</div>
           <div class="ep-pills">
             <span class="pill">Body: firebase_token</span>
             <span class="pill pill-g">Returns: flat user JSON</span>
@@ -1053,7 +1053,7 @@ footer {
       <div class="ep">
         <div class="mth m-get">GET</div>
         <div>
-          <div class="ep-path">/api/companion/weekly-letter/</div>
+          <div class="ep-path">/api/v1/companion/weekly-letter/</div>
           <div class="ep-desc">Generate a personalised weekly letter from Luna based on the last 7 days of the authenticated user's entries. Requires at least 2 entries in the past week. Returns a warm 3–4 paragraph letter, dominant mood emoji, and streak stats.</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
@@ -1201,7 +1201,7 @@ footer {
 <span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">post</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/companion/generate/'</span>,
+    /api/v1/companion/generate/'</span>,
   options: Options(headers: <span class="pu">{</span>
     <span class="str">'Authorization'</span><span class="pu">:</span> <span class="str">'Bearer $token'</span>,
   <span class="pu">}</span>),
@@ -1228,7 +1228,7 @@ footer {
 <span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/companion/history/'</span>,
+    /api/v1/companion/history/'</span>,
   options: Options(headers: <span class="pu">{</span>
     <span class="str">'Authorization'</span><span class="pu">:</span> <span class="str">'Bearer $token'</span>,
   <span class="pu">}</span>),
@@ -1254,7 +1254,7 @@ HEADERS = <span class="pu">{</span><span class="str">"Authorization"</span><span
 
 <span class="cm"># Generate response (with conversation history)</span>
 res = requests.<span class="fn">post</span>(
-  f<span class="str">"{BASE}/api/companion/generate/"</span>,
+  f<span class="str">"{BASE}/api/v1/companion/generate/"</span>,
   headers=HEADERS,
   json=<span class="pu">{</span>
     <span class="str">"emoji"</span><span class="pu">:</span>    <span class="str">"😔"</span>,
@@ -1275,7 +1275,7 @@ entry = res.<span class="fn">json</span>()
 <span class="fn">curl</span> <span class="kw">-X POST</span> \
   <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/companion/generate/</span> \
+  /api/v1/companion/generate/</span> \
   <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
   <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
   <span class="kw">-d</span> <span class="str">'{"emoji":"😔","thoughts":"I feel tired"}'</span>
@@ -1285,7 +1285,7 @@ entry = res.<span class="fn">json</span>()
   <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
   <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/companion/history/</span></pre>
+  /api/v1/companion/history/</span></pre>
       </div>
 
       <div class="cc">
@@ -1297,7 +1297,7 @@ entry = res.<span class="fn">json</span>()
 <span class="fn">curl</span> <span class="kw">-X POST</span> \
   <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/companion/activity/</span> \
+  /api/v1/companion/activity/</span> \
   <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
   <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
   <span class="kw">-d</span> <span class="str">'{"entry_type":"breathing","payload":{"duration_seconds":90}}'</span>
@@ -1306,7 +1306,7 @@ entry = res.<span class="fn">json</span>()
 <span class="fn">curl</span> <span class="kw">-X POST</span> \
   <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/companion/activity/</span> \
+  /api/v1/companion/activity/</span> \
   <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
   <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
   <span class="kw">-d</span> <span class="str">'{"entry_type":"sudoku","payload":{"solved":true,"duration_seconds":240,"difficulty":"medium"}}'</span>
@@ -1334,7 +1334,7 @@ entry = res.<span class="fn">json</span>()
 <span class="fn">curl</span> <span class="kw">-X DELETE</span> \
   <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/companion/entries/51/delete/</span> \
+  /api/v1/companion/entries/51/delete/</span> \
   <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span>
 <span class="cm"># 204 No Content on success, 404 if not yours / doesn't exist</span>
 
@@ -1342,7 +1342,7 @@ entry = res.<span class="fn">json</span>()
 <span class="fn">curl</span> <span class="kw">-X DELETE</span> \
   <span class="str">https://web-production-f8628
   .up.railway.app
-  /api/companion/entries/delete-all/</span> \
+  /api/v1/companion/entries/delete-all/</span> \
   <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
   <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
   <span class="kw">-d</span> <span class="str">'{"confirm": true}'</span>
@@ -1362,7 +1362,7 @@ entry = res.<span class="fn">json</span>()
 <span class="kw">final</span> response = <span class="kw">await</span> dio.<span class="fn">get</span>(
   <span class="str">'https://web-production-f8628
     .up.railway.app
-    /api/companion/weekly-letter/'</span>,
+    /api/v1/companion/weekly-letter/'</span>,
   options: Options(headers: <span class="pu">{</span>
     <span class="str">'Authorization'</span><span class="pu">:</span> <span class="str">'Bearer $token'</span>,
   <span class="pu">}</span>),

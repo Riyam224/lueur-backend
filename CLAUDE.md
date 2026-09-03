@@ -83,12 +83,14 @@ This is a Django REST Framework application that provides an AI-powered wellness
 - **Main URLs** ([core/urls.py](core/urls.py)):
   - `/` → Home page (`templates/index.html`)
   - `/admin/` → Django admin interface
-  - `/api/companion/` → Includes companion (therapist) app URLs
-  - `/api/accounts/` → Includes accounts app URLs
-  - `/api/auth/verify/` → `VerifyFirebaseTokenView` directly (legacy path kept for the existing Flutter client; identical to `/api/accounts/verify/`)
+  - `/api/companion/` and `/api/v1/companion/` → Includes companion (therapist) app URLs (dual-routed, see below)
+  - `/api/accounts/` and `/api/v1/accounts/` → Includes accounts app URLs (dual-routed, see below)
+  - `/api/auth/verify/` and `/api/v1/auth/verify/` → `VerifyFirebaseTokenView` directly (legacy path kept for the existing Flutter client; identical to `/api/accounts/verify/`)
   - `/api/schema/` → OpenAPI schema
   - `/api/docs/` → Swagger UI
   - `/api/redoc/` → ReDoc UI
+
+  **Dual-routing (`/api/v1/`)**: `core/urls.py` registers every `companion`/`accounts`/`auth` route twice — once unprefixed (`/api/...`) and once under `/api/v1/...` — both `include()`s pointing at the same app `urls.py` and the same views. This is a temporary migration step so deployed app versions that haven't switched to `/api/v1/` yet keep working; `/api/v1/` is the path new clients should use. The unprefixed routes should be removed once all deployed app versions have migrated.
 
 - **Therapist URLs** ([therapist/urls.py](therapist/urls.py)):
   - `generate/` → `GenerateResponseAPIView` (POST only, auth required)

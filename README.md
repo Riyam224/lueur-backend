@@ -133,27 +133,31 @@ Server runs at `http://127.0.0.1:8000/`
 
 ## API Endpoints
 
-Every endpoint below requires `Authorization: Bearer <firebase-id-token>` **except** `/api/accounts/verify/` (and its `/api/auth/verify/` alias), which is called right after Firebase sign-in — before the client has anything to put in that header — and `GET /health/`, used by Railway/uptime monitoring.
+Every endpoint below requires `Authorization: Bearer <firebase-id-token>` **except** `/api/v1/accounts/verify/` (and its `/api/v1/auth/verify/` alias), which is called right after Firebase sign-in — before the client has anything to put in that header — and `GET /health/`, used by Railway/uptime monitoring.
 
-### Companion — Base URL: `/api/companion/`
+### API Versioning
+
+`/api/v1/` is the current, recommended path prefix for every endpoint below. The unprefixed `/api/...` routes (e.g. `/api/companion/generate/`) still work — they point at the exact same views — and are kept temporarily for backward compatibility with app versions that haven't updated to `/api/v1/` yet. New clients should use `/api/v1/`; the unprefixed routes will be removed once all deployed app versions have migrated.
+
+### Companion — Base URL: `/api/v1/companion/`
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| POST | `/api/companion/generate/` | Submit mood, get Luna's AI response (scoped to the authenticated user). Crisis-language input short-circuits before any Groq call. |
-| GET | `/api/companion/history/` | Get all saved entries for the authenticated user — a mix of mood chats and logged activities |
-| GET | `/api/companion/weekly-letter/` | Get Luna's weekly reflection letter and real streak stats for the authenticated user |
-| POST | `/api/companion/activity/` | Log a completed activity (breathing, sudoku, drawing, or letter_read) — no AI call, no crisis check |
-| DELETE | `/api/companion/entries/<id>/delete/` | Delete one journal entry owned by the authenticated user. 404 if it doesn't exist or belongs to someone else |
-| DELETE | `/api/companion/entries/delete-all/` | Delete every journal entry owned by the authenticated user. Requires `{"confirm": true}`; rate-limited to 5/minute |
+| POST | `/api/v1/companion/generate/` | Submit mood, get Luna's AI response (scoped to the authenticated user). Crisis-language input short-circuits before any Groq call. |
+| GET | `/api/v1/companion/history/` | Get all saved entries for the authenticated user — a mix of mood chats and logged activities |
+| GET | `/api/v1/companion/weekly-letter/` | Get Luna's weekly reflection letter and real streak stats for the authenticated user |
+| POST | `/api/v1/companion/activity/` | Log a completed activity (breathing, sudoku, drawing, or letter_read) — no AI call, no crisis check |
+| DELETE | `/api/v1/companion/entries/<id>/delete/` | Delete one journal entry owned by the authenticated user. 404 if it doesn't exist or belongs to someone else |
+| DELETE | `/api/v1/companion/entries/delete-all/` | Delete every journal entry owned by the authenticated user. Requires `{"confirm": true}`; rate-limited to 5/minute |
 
-### Accounts — Base URL: `/api/accounts/`
+### Accounts — Base URL: `/api/v1/accounts/`
 
 | Method | Endpoint | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/api/accounts/me/` | Required | Get the authenticated user's profile |
-| PATCH | `/api/accounts/me/` | Required | Update editable profile fields (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`, `preferred_language`) |
-| DELETE | `/api/accounts/delete-account/` | Required | Delete the user's Firebase identity, journal entries, and local account permanently |
-| POST | `/api/accounts/verify/` (alias: `/api/auth/verify/`) | None | Verify a Firebase ID token, auto-creating the linked `accounts.User` on first sight |
+| GET | `/api/v1/accounts/me/` | Required | Get the authenticated user's profile |
+| PATCH | `/api/v1/accounts/me/` | Required | Update editable profile fields (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`, `preferred_language`) |
+| DELETE | `/api/v1/accounts/delete-account/` | Required | Delete the user's Firebase identity, journal entries, and local account permanently |
+| POST | `/api/v1/accounts/verify/` (alias: `/api/v1/auth/verify/`) | None | Verify a Firebase ID token, auto-creating the linked `accounts.User` on first sight |
 
 Registration, login, logout, token refresh, password reset, email verification, and profile-photo upload are **not** Django endpoints — they're handled entirely by Firebase Auth (and Firebase Storage for photos) on the client.
 
@@ -260,7 +264,7 @@ Both endpoints are hard deletes — there is no soft-delete flag anywhere in thi
 **DELETE `/api/companion/entries/<id>/delete/`** — deletes a single entry. The lookup and the ownership check happen in one query (`JournalEntry.objects.filter(user_id=str(request.user.id), pk=entry_id)`), never a plain `pk`-only lookup — so an `id` that exists but belongs to another user returns the same `404` as an `id` that doesn't exist at all, and never leaks which case it was.
 
 ```bash
-curl -X DELETE https://web-production-f8628.up.railway.app/api/companion/entries/51/delete/ \
+curl -X DELETE https://web-production-f8628.up.railway.app/api/v1/companion/entries/51/delete/ \
   -H "Authorization: Bearer <firebase_id_token>"
 ```
 
@@ -271,7 +275,7 @@ curl -X DELETE https://web-production-f8628.up.railway.app/api/companion/entries
 **DELETE `/api/companion/entries/delete-all/`** — deletes every entry owned by the authenticated user. Requires an explicit confirmation body; without it, nothing is deleted:
 
 ```bash
-curl -X DELETE https://web-production-f8628.up.railway.app/api/companion/entries/delete-all/ \
+curl -X DELETE https://web-production-f8628.up.railway.app/api/v1/companion/entries/delete-all/ \
   -H "Authorization: Bearer <firebase_id_token>" \
   -H "Content-Type: application/json" \
   -d '{"confirm": true}'
@@ -599,7 +603,7 @@ class TherapistAPITests(TestCase):
     def test_create_mood_entry(self, mock_generate):
         mock_generate.return_value = "Mocked AI response"
         response = self.client.post(
-            '/api/companion/generate/',
+            '/api/v1/companion/generate/',
             {'emoji': '😊', 'thoughts': 'Great day!'},
             format='json',
             HTTP_AUTHORIZATION="Bearer faketoken",
@@ -616,21 +620,21 @@ class TherapistAPITests(TestCase):
 
 ```bash
 # Generate AI response (with optional conversation history)
-curl -X POST http://localhost:8000/api/companion/generate/ \
+curl -X POST http://localhost:8000/api/v1/companion/generate/ \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <firebase-id-token>" \
   -d '{"emoji": "😊", "thoughts": "Great day!", "history": []}'
 
 # Get history
-curl http://localhost:8000/api/companion/history/ \
+curl http://localhost:8000/api/v1/companion/history/ \
   -H "Authorization: Bearer <firebase-id-token>"
 
 # Get weekly letter
-curl http://localhost:8000/api/companion/weekly-letter/ \
+curl http://localhost:8000/api/v1/companion/weekly-letter/ \
   -H "Authorization: Bearer <firebase-id-token>"
 
 # Get profile
-curl http://localhost:8000/api/accounts/me/ \
+curl http://localhost:8000/api/v1/accounts/me/ \
   -H "Authorization: Bearer <firebase-id-token>"
 ```
 
@@ -641,7 +645,7 @@ curl http://localhost:8000/api/accounts/me/ \
 // const idToken = await firebase.auth().currentUser.getIdToken();
 
 // Generate AI response (pass history for multi-turn context)
-const res = await fetch('http://localhost:8000/api/companion/generate/', {
+const res = await fetch('http://localhost:8000/api/v1/companion/generate/', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -657,13 +661,13 @@ const data = await res.json();
 // If data.ai_response includes '[SESSION_END]', close the session
 
 // Get history
-const history = await fetch('http://localhost:8000/api/companion/history/', {
+const history = await fetch('http://localhost:8000/api/v1/companion/history/', {
   headers: { Authorization: `Bearer ${idToken}` },
 });
 const entries = await history.json();
 
 // Get profile
-const meRes = await fetch('http://localhost:8000/api/accounts/me/', {
+const meRes = await fetch('http://localhost:8000/api/v1/accounts/me/', {
   headers: { Authorization: `Bearer ${idToken}` },
 });
 ```
