@@ -244,8 +244,9 @@ SENTRY_ENVIRONMENT = os.environ.get("SENTRY_ENVIRONMENT", "development")
 
 # Journal entries and Luna chat content must never leave the server into
 # Sentry, so any of these keys (however nested) get redacted from request
-# body data before an event is sent.
-_SENTRY_REDACT_FIELDS = {"journal", "mood_note", "message", "content", "text", "entry"}
+# body data before an event is sent. Keys must match this API's actual
+# field/variable names (see therapist/serializers.py, therapist/ai_model.py).
+_SENTRY_REDACT_FIELDS = {"thoughts", "content", "ai_reply", "transcript", "memory_summary"}
 
 
 def _sentry_redact(value):
@@ -273,6 +274,11 @@ if SENTRY_DSN and not TESTING:
         integrations=[DjangoIntegration()],
         traces_sample_rate=0.1,
         send_default_pii=False,
+        # Python (unlike Dart) captures local variable values in stack
+        # frames by default, which would bypass before_send's key-based
+        # redaction entirely (it only scrubs event["request"]["data"]).
+        # Disabling this closes that channel site-wide.
+        include_local_variables=False,
         environment=SENTRY_ENVIRONMENT,
         before_send=_sentry_before_send,
     )

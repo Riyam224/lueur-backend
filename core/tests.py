@@ -1,12 +1,13 @@
 from datetime import timedelta
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from accounts.models import User
 from therapist.models import JournalEntry
 
 from .admin_dashboard import dashboard_summary
+from .settings import _SENTRY_REDACT_FIELDS, _sentry_before_send
 
 
 def _entry(user_id, days_ago, now, crisis_flagged=False):
@@ -68,3 +69,30 @@ class DashboardSummaryTests(TestCase):
         self.assertEqual(summary["crisis_flagged_last_30_days"], 2)
         # user-a streak=2, user-b streak=0, user-c streak=0 -> average 0.7
         self.assertEqual(summary["average_streak"], 0.7)
+
+
+class SentryRedactionTests(SimpleTestCase):
+    def test_thoughts_redacted_emoji_untouched(self):
+        event = {
+            "request": {
+                "data": {
+                    "thoughts": "some real journal text",
+                    "emoji": "smiling face",
+                }
+            }
+        }
+
+        result = _sentry_before_send(event, {})
+
+        self.assertEqual(result["request"]["data"]["thoughts"], "[REDACTED]")
+        self.assertEqual(result["request"]["data"]["emoji"], "smiling face")
+
+    def test_redact_fields_no_longer_contains_leftover_field_names(self):
+        self.assertNotIn("journal", _SENTRY_REDACT_FIELDS)
+        self.assertNotIn("mood_note", _SENTRY_REDACT_FIELDS)
+        self.assertNotIn("message", _SENTRY_REDACT_FIELDS)
+        self.assertNotIn("entry", _SENTRY_REDACT_FIELDS)
+        self.assertEqual(
+            _SENTRY_REDACT_FIELDS,
+            {"thoughts", "content", "ai_reply", "transcript", "memory_summary"},
+        )
