@@ -206,8 +206,9 @@ footer {
   <ul>
     <li>Email address</li>
     <li>A unique user identifier (managed by Firebase Authentication)</li>
-    <li>Optional profile information you choose to provide (full name, phone number, bio, date of birth, gender)</li>
+    <li>Your full name, which you may optionally add or edit at any time within the app</li>
   </ul>
+  <p>The app's API is capable of storing additional optional profile fields (such as phone number or bio) for future features, but the current version of the app does not collect or expose these.</p>
   <p>Account creation and sign-in are handled by <strong>Firebase Authentication</strong>, a service provided by Google. We do not directly store your password — Firebase manages this on our behalf. See Google's Firebase privacy documentation for details: <a href="https://firebase.google.com/support/privacy" target="_blank">firebase.google.com/support/privacy</a></p>
 
   <h3>Mood Journal Content</h3>
@@ -219,7 +220,7 @@ footer {
   </ul>
 
   <h3>AI-Generated Responses</h3>
-  <p>Each journal entry you submit is processed to generate an empathetic response from Luna. <strong>To generate this response, your journal entry text is sent to Groq, a third-party AI processing service, for analysis.</strong> Groq processes this text solely to generate a response and return it to Lueur. Per Groq's GroqCloud Terms of Sale, Groq does not use API inputs or outputs to train its models. We do not control Groq's independent data retention practices; you can review Groq's privacy policy at <a href="https://groq.com/privacy-policy/" target="_blank">groq.com/privacy-policy</a>.</p>
+  <p>Each journal entry you submit is processed to generate an empathetic response from Luna. <strong>To generate this response, your journal entry text is sent to Groq, a third-party AI processing service, for analysis.</strong> Groq processes this text solely to generate a response and return it to Lueur. Per Groq's GroqCloud Terms of Sale, Groq does not use API inputs or outputs to train its models; Groq may temporarily retain inputs and outputs for up to 30 days solely to troubleshoot errors or investigate suspected abuse. We do not control Groq's independent data retention practices; you can review Groq's privacy policy at <a href="https://groq.com/privacy-policy/" target="_blank">groq.com/privacy-policy</a>.</p>
   <p>We store both your original journal entry and Luna's AI-generated response in our database, associated with your account, so you can view your journal history.</p>
 
   <h3>Usage Data</h3>
@@ -244,7 +245,7 @@ footer {
     <tr><td>Firebase Authentication (Google)</td><td>User sign-up and login</td><td>Email address, authentication tokens</td></tr>
     <tr><td>Groq</td><td>AI-generated journal responses</td><td>Journal entry text (thoughts, emoji, limited conversation history)</td></tr>
     <tr><td>Railway</td><td>Application hosting</td><td>All application data (encrypted in transit and at rest)</td></tr>
-    <tr><td>Sentry</td><td>Error monitoring</td><td>Technical error reports, which may occasionally include device/browser information, and in rare cases parts of your journal entry text if an error occurs while it's being processed. IP address, cookies, and full request bodies are not sent.</td></tr>
+    <tr><td>Sentry</td><td>Error monitoring</td><td>Technical error reports, which may include device/browser information. Journal entry text and other known sensitive fields are filtered out before an error report is ever sent. IP address, cookies, and full request bodies are not sent.</td></tr>
   </table>
 
   <p>Each of these providers has its own privacy policy governing how they handle data on their platforms.</p>
@@ -259,7 +260,7 @@ footer {
   <p>If you cannot access the app (for example, you no longer have the device installed), you may request account deletion instead by emailing <a href="mailto:riyam.thekluge@gmail.com">riyam.thekluge@gmail.com</a> from the email address associated with your account. We will process web-based deletion requests within 30 days.</p>
 
   <h3>Data Access and Correction</h3>
-  <p>You may view and update your profile information (name, bio, phone number, date of birth, gender) at any time within the app.</p>
+  <p>You may view and update your profile information (name) at any time within the app.</p>
 
   <h3>Data Portability</h3>
   <p>If you would like a copy of your data before deletion, please contact us at <a href="mailto:riyam.thekluge@gmail.com">riyam.thekluge@gmail.com</a>.</p>
