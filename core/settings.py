@@ -200,7 +200,7 @@ AI-powered mood journaling.
 
 ### Features
 - 🌸 Firebase-authenticated user accounts
-- 💬 AI-powered empathetic responses from Luna (Groq llama-3.1-8b-instant)
+- 💬 AI-powered empathetic responses from Luna (Groq openai/gpt-oss-20b)
 - 📔 Mood journal with history tracking
 - 😔 Emoji-based mood selection
 - 📝 Weekly personalized letters from Luna
