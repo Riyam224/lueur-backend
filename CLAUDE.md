@@ -139,8 +139,9 @@ Registration, login, logout, token refresh, password reset, email verification, 
 - `whitenoise==6.5.0` — Static file serving for production
 - `certifi==2026.2.25` — SSL certificate bundle
 - `firebase-admin>=6.5,<7` — verifies Firebase ID tokens, deletes Firebase users server-side
+- `python-dotenv==1.0.1` — loads a local `.env` file into environment variables for development convenience (not used/needed in production, where Railway sets real env vars)
 
-**Note**: No `torch` or `transformers` — uses external API instead of local model. No `python-decouple`/`dotenv` — settings use the existing `os.environ.get(..., default)` pattern. No `Pillow` — profile photos are now stored in Firebase Storage by the client, not Django.
+**Note**: No `torch` or `transformers` — uses external API instead of local model. All settings are read via `os.environ.get(..., default)`; `python-dotenv`'s `load_dotenv()` is called at the top of [core/settings.py](core/settings.py) to load a local `.env` file into those environment variables for development convenience — Railway's production environment sets real env vars directly, so dotenv is a local-only convenience layer, not a replacement for the `os.environ.get()` pattern. No `Pillow` — profile photos are now stored in Firebase Storage by the client, not Django.
 
 ### Testing
 
