@@ -24,8 +24,11 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 - **Mood journal** — every entry (emoji + thoughts + AI reply) is saved per user
 - **Multi-type journal entries** — the journal isn't just mood chats: it also logs completed activities — breathing exercises, sudoku, drawing, and weekly letter reads — via `entry_type` and a per-type `payload`, all through the same history/streak machinery
 - **Weekly letter** — Luna writes a personal weekly reflection based on recent entries (in the user's preferred language), including a real consecutive-day streak (not just an entry count)
+- **Cross-session memory** — when a chat session ends (`[SESSION_END]`), Luna summarizes it on a background thread and stores a rolling `memory_summary` on the user's profile (`accounts.User.memory_summary`/`memory_updated_at`); that summary is fed back into the system prompt on future chats so Luna can reference earlier context without the client ever sending or seeing the raw transcript — see [Cross-Session Memory](#cross-session-memory)
+- **Context-aware tone** — `generate/` accepts an optional `context_flag` (currently `post_exercise_breathing`) that softens Luna's system prompt right after the user finishes a breathing exercise
 - **Per-user data isolation** — every entry is scoped to the authenticated user (`request.user`); no client-supplied identifier is ever accepted
 - **Entry deletion** — delete a single journal entry by id, or every entry at once, both hard-deleted and scoped strictly to the authenticated user; the bulk delete requires an explicit `{"confirm": true}` body and is rate-limited to 5/minute — see [Deleting Journal Entries](#deleting-journal-entries)
+- **Groq free-tier budget guard** — `therapist/groq_budget_guard.py` tracks requests/min, requests/day, and tokens/min against Groq's free-tier ceilings (with an 80–90% safety margin) using Django's cache framework; when the shared budget is nearly exhausted, `generate/` returns a rotating "distracted friend" fallback line (bilingual, never mentions infrastructure) instead of calling Groq — a different, less common path than the network-failure fallback in the bullet above
 
 ### Accounts (`/api/accounts/`)
 
@@ -200,8 +203,10 @@ Submit a mood entry. Luna responds with an empathetic message that is saved to t
 ```
 
 - **`history`**: optional — list of prior `{"role", "content"}` messages for multi-turn context. Only the last 10 items are used.
+- **`context_flag`**: optional — currently only `post_exercise_breathing` is accepted; it tells Luna's system prompt the user just finished a breathing exercise, so her reply is softer/calmer than a cold-open chat message.
 - There is no `user_id` field — the entry is always attributed to `request.user`.
 - There is no `preferred_language`/`gender` field either — Luna's reply language and grammatical gender come from the authenticated user's profile (`request.user.preferred_language`, `request.user.gender`), never from the request body. See [Localization](#localization-arabic-support).
+- Luna's system prompt also silently incorporates the user's stored `memory_summary` (if any) for continuity across sessions — see [Cross-Session Memory](#cross-session-memory).
 
 **Response (200)**:
 
@@ -226,6 +231,8 @@ When the user feels better or resolved, Luna's `ai_response` will end with `[SES
 ```
 
 If the Groq API is unavailable, the entry is still saved with a localized fallback message — English: `"Luna is taking a little break right now. Please try again in a moment 🌿"`, Arabic: `"لونا بحاجة إلى دقيقة الآن. حاول مرة أخرى بعد قليل 🌿"`.
+
+**Rate limiting**: `generate/` carries two independent throttle scopes on top of the global `60/minute` default — `ai_generate` (`ScopedRateThrottle`, `20/minute`) and `luna_chat` (`LunaChatRateThrottle`, a per-user `UserRateThrottle`, `20/min`). Either one tripping returns `429`. This protects the shared Groq free-tier budget from a single user's burst independently of overall endpoint traffic; see also the budget-guard fallback described above under [Features](#features).
 
 ---
 
@@ -322,6 +329,27 @@ A match:
 The same check also runs when building `weekly-letter/`'s prompt: any past entry that matches is redacted to `"(a difficult moment)"` before its text is sent to Groq, so a flagged entry from earlier in the week can't leak into a third-party API call via the weekly summary.
 
 This is keyword-based pattern matching, not a clinical or diagnostic tool, and it **will** produce false positives on non-literal phrasing (e.g. "I can't go on watching this show"). That tradeoff is intentional — over-triggering toward a support message is safer than under-triggering and saying nothing.
+
+---
+
+### Cross-Session Memory
+
+When a chat exchange's `ai_response` ends with `[SESSION_END]` (Luna judged the user resolved/at a natural stopping point), `GenerateResponseAPIView` calls `trigger_memory_update()` (`therapist/ai_model.py`), which spawns a **daemon background thread** so the summarization work never delays the HTTP response already sent to the client.
+
+That thread:
+
+1. Rebuilds the full session transcript (`history` + the current turn), redacting any crisis-flagged message to `"(a difficult moment)"` the same way the weekly letter does
+2. Sends the transcript to Groq with `LunaPromptProvider.get_memory_summary_prompt()` (localized/gendered like everything else Luna-voiced) to produce a short summary
+3. Overwrites `accounts.User.memory_summary` and stamps `memory_updated_at` — one rolling summary per user, not a growing log
+
+That stored `memory_summary` is then passed into `generate_ai_response()` as context on the user's *next* chat, so Luna's system prompt can reference earlier context ("last time you mentioned...") without the client ever needing to resend history across sessions.
+
+Notes:
+
+- This is best-effort: if the Groq call fails, if the budget guard rejects it, or if Groq returns an empty summary, `memory_summary` is simply left unchanged for that turn — no error surfaces to the user.
+- The transcript passed to Groq is never persisted anywhere beyond the summarization call itself — only the resulting summary text is stored.
+- `memory_summary` is deleted along with the rest of the user's data on account deletion (see [Account Deletion](#account-deletion)).
+- Sentry's payload scrubber (`core/settings.py` `_SENTRY_REDACT_FIELDS`) explicitly redacts `memory_summary` alongside `thoughts`/`content`/`ai_reply`/`transcript`, so it can never leak into an error report.
 
 ---
 
@@ -478,6 +506,7 @@ lueur-backend/
 │   ├── crisis.py          # contains_crisis_language(), CRISIS_RESPONSE — English crisis detection (frozen, never edited)
 │   ├── crisis_ar.py       # contains_crisis_language_ar() — Arabic crisis detection (sibling module, runs alongside crisis.py)
 │   ├── groq_budget_guard.py  # Free-tier rate/token budget guard; get_fallback_message() now bilingual
+│   ├── throttles.py       # LunaChatRateThrottle, DeleteAllJournalEntriesRateThrottle (per-user, in addition to DRF's global/scoped throttles)
 │   ├── apps.py            # TherapistConfig.ready() — production boot check for placeholder Arabic content
 │   ├── urls.py            # App URL patterns
 │   ├── management/commands/
@@ -486,7 +515,7 @@ lueur-backend/
 │   ├── tests.py
 │   └── migrations/
 ├── accounts/
-│   ├── models.py          # User (AUTH_USER_MODEL, has firebase_uid, preferred_language, gender)
+│   ├── models.py          # User (AUTH_USER_MODEL, has firebase_uid, preferred_language, gender, memory_summary/memory_updated_at)
 │   ├── managers.py        # UserManager (email-based create_user/create_superuser)
 │   ├── views.py           # MeView, DeleteAccountView, VerifyFirebaseTokenView
 │   ├── services.py        # Response envelope helpers + delete_user_account() (shared by the API and the management command)
@@ -701,4 +730,4 @@ If you are in crisis, please reach out:
 
 Built with Django REST Framework · Powered by Groq API · Authenticated via Firebase Auth · English & Arabic supported
 
-Last Updated: July 30, 2026
+Last Updated: September 5, 2026

@@ -194,7 +194,7 @@ footer {
 
 <div class="wrap">
   <h1>Privacy Policy for Lueur</h1>
-  <div class="updated">Last updated: July 30, 2026</div>
+  <div class="updated">Last updated: September 5, 2026</div>
 
   <p>Lueur ("we," "our," or "the app") is an AI wellness companion app featuring Luna, who provides supportive responses to your mood journal entries. This Privacy Policy explains what information we collect, how we use it, and the choices you have.</p>
   <p>By using Lueur, you agree to the collection and use of information as described in this policy.</p>
@@ -224,6 +224,9 @@ footer {
   <p>Each journal entry you submit is processed to generate an empathetic response from Luna. <strong>To generate this response, your journal entry text is sent to Groq, a third-party AI processing service, for analysis.</strong> Groq processes this text solely to generate a response and return it to Lueur. Per Groq's GroqCloud Terms of Sale, Groq does not use API inputs or outputs to train its models; Groq may temporarily retain inputs and outputs for up to 30 days solely to troubleshoot errors or investigate suspected abuse. We do not control Groq's independent data retention practices; you can review Groq's privacy policy at <a href="https://groq.com/privacy-policy/" target="_blank">groq.com/privacy-policy</a>.</p>
   <p>We store both your original journal entry and Luna's AI-generated response in our database, associated with your account, so you can view your journal history.</p>
 
+  <h3>Conversation Memory</h3>
+  <p>When a chat conversation with Luna comes to a natural close, we generate a short summary of that conversation (also via Groq, subject to the same terms described above) and store it associated with your account. This stored summary is used to give Luna continuity — so she can refer back to something you mentioned in an earlier conversation without you needing to repeat it. Only the summary is kept; the underlying conversation transcript used to generate it is not separately retained beyond that one-time processing step. This summary is deleted, along with the rest of your data, if you delete your account.</p>
+
   <h3>Usage Data</h3>
   <p>We may automatically collect limited technical information, such as API request timestamps and error logs (used for debugging, via our error-monitoring service, Sentry). We also use Firebase Analytics, a service provided by Google, to collect app usage data — such as screens viewed and features used — to help us understand how the app is used and improve the product. We do not collect device identifiers, location data, or advertising identifiers.</p>
   <p>In addition to being stored on our servers, some data (such as your recent journal entries) is also cached locally on your device, so the app can continue to function during an unstable or offline connection.</p>
@@ -235,6 +238,7 @@ footer {
     <li>Generate personalized, empathetic AI responses to your journal entries</li>
     <li>Display your journal history back to you</li>
     <li>Generate weekly summary letters based on your recent entries</li>
+    <li>Maintain a short rolling summary of past conversations so Luna can respond with continuity across sessions</li>
     <li>Identify and fix technical issues (via error monitoring)</li>
   </ul>
   <p>We do <strong>not</strong>: sell your data to third parties, use your journal content for advertising purposes, or display third-party advertisements in the app.</p>

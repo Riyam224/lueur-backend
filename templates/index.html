@@ -870,7 +870,7 @@ footer {
         <p class="hero-desc">
           Lueur is an AI wellness companion app where Luna tends to your
           emotional garden. Built with Flutter, Django REST Framework, and
-          Groq's llama-3.1-8b-instant for warm, near-instant responses —
+          Groq's openai/gpt-oss-20b for warm, near-instant responses —
           with built-in crisis-language detection to keep sensitive
           moments away from the AI and pointed at real human support.
         </p>
@@ -938,10 +938,10 @@ footer {
         <div class="mth m-post">POST</div>
         <div>
           <div class="ep-path">/api/v1/companion/generate/</div>
-          <div class="ep-desc">Send an emoji + thoughts and receive a warm, empathetic AI response from Luna. Pass optional conversation history for multi-turn context. Luna signals a resolved session with <code>[SESSION_END]</code> in her reply. Crisis-language is detected before any AI call and short-circuits to a static support response with <code>crisis_flagged: true</code>.</div>
+          <div class="ep-desc">Send an emoji + thoughts and receive a warm, empathetic AI response from Luna. Pass optional conversation history for multi-turn context, or a <code>context_flag</code> to soften her tone right after an exercise. Luna signals a resolved session with <code>[SESSION_END]</code> in her reply — which also triggers a background summary that's remembered for next time. Crisis-language is detected before any AI call and short-circuits to a static support response with <code>crisis_flagged: true</code>.</div>
           <div class="ep-pills">
             <span class="pill">Body: emoji, thoughts</span>
-            <span class="pill">Optional: history[]</span>
+            <span class="pill">Optional: history[], context_flag</span>
             <span class="pill pill-p">Auth: Bearer token</span>
             <span class="pill pill-g">Returns: JournalEntry (+entry_type/payload)</span>
             <span class="pill">Content-Type: application/json</span>
@@ -1115,7 +1115,7 @@ footer {
       <div class="fs">
         <div class="fi">🤖</div>
         <div class="ft">GROQ AI</div>
-        <div class="fd">llama-3.1-8b processes it</div>
+        <div class="fd">gpt-oss-20b processes it</div>
       </div>
       <div class="fa"></div>
       <div class="fs">
@@ -1148,7 +1148,7 @@ footer {
       </div>
       <div class="fc">
         <div class="fc-ico" style="background:rgba(122, 90, 159,.1)">⚡</div>
-        <div class="fc-t">GROQ — llama 3.1</div>
+        <div class="fc-t">GROQ — gpt-oss-20b</div>
         <div class="fc-d">Ultra-fast LLM inference using GROQ's LPU chip. 10–20× faster than traditional GPU inference.</div>
       </div>
       <div class="fc">
@@ -1175,6 +1175,11 @@ footer {
         <div class="fc-ico" style="background:rgba(156, 106, 9,.1)">🛟</div>
         <div class="fc-t">Crisis Detection</div>
         <div class="fc-d">Journal text is checked for crisis language before it ever reaches Groq — at both the endpoint and the AI-service layer. Matches short-circuit to a static support response with real hotline numbers.</div>
+      </div>
+      <div class="fc">
+        <div class="fc-ico" style="background:rgba(122, 90, 159,.1)">🧠</div>
+        <div class="fc-t">Cross-Session Memory</div>
+        <div class="fc-d">When a session ends, Luna summarizes it on a background thread and stores a rolling memory on your profile — so future chats can pick up the thread without you repeating yourself.</div>
       </div>
     </div>
   </div>
@@ -1408,7 +1413,7 @@ entry = res.<span class="fn">json</span>()
 <div class="wrap">
   <footer>
     <div class="fl">Built with 💜 by <strong>Riyam</strong> · Lueur — AI Wellness Companion · 2026 · <a href="/privacy/" style="color:inherit">Privacy Policy</a></div>
-    <div class="fr">Flutter · Django REST · Groq llama-3.1 · Firebase · Railway</div>
+    <div class="fr">Flutter · Django REST · Groq gpt-oss-20b · Firebase · Railway</div>
   </footer>
 </div>
 
