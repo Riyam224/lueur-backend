@@ -67,7 +67,10 @@ The screenshots below are taken from this branch running locally and reflect the
 | AI Model | Groq API — `openai/gpt-oss-20b` (cloud) |
 | Auth | Firebase Authentication via `firebase-admin` (server-side ID token verification only) |
 | API Docs | drf-spectacular (Swagger UI + ReDoc) |
-| Database | SQLite (dev) / PostgreSQL (prod recommended) |
+| Admin Theme | `django-jazzmin` (Bootswatch "united" theme, custom icons/CSS) |
+| Database | SQLite (dev) / PostgreSQL (prod) — via `dj-database-url` + `psycopg2-binary`, used automatically whenever Railway's `DATABASE_URL` is set |
+| CORS | `django-cors-headers` |
+| Error Monitoring | `sentry-sdk` (PII-redacting `before_send` hook) |
 | HTTP Client | Python `requests` |
 | Static Files | WhiteNoise |
 | Deployment | Gunicorn + Railway |
@@ -399,12 +402,27 @@ The letter is written in the authenticated user's `preferred_language`. Its Groq
 }
 ```
 
-**Response when not enough entries**:
+**Response when not enough entries** (fewer than 2 entries in the last 7 days — `stats` is omitted entirely):
 
 ```json
 {
   "letter": null,
   "reason": "not_enough_entries"
+}
+```
+
+**Response when Groq fails** (enough entries existed, but `generate_weekly_letter()` raised — e.g. Groq is unreachable): `letter` is `null` but `stats` is still populated, and there is **no `reason` key** — this is how an integrator distinguishes it from the not-enough-entries case above.
+
+```json
+{
+  "letter": null,
+  "stats": {
+    "entry_count": 5,
+    "dominant_emoji": "😔",
+    "streak": 5,
+    "week_start": "2026-06-15",
+    "week_end": "2026-06-22"
+  }
 }
 ```
 
@@ -450,6 +468,14 @@ python manage.py delete_user_by_email someone@example.com
 ```
 
 Both paths share one implementation, so there's no risk of the manual path doing something different (or less complete) than the in-app one.
+
+**Weekly letter cache warm-up** — `therapist/management/commands/generate_weekly_letters.py` pre-generates Luna's weekly letter (via `therapist/services.py::warm_weekly_letter_cache()`) for every user with at least 2 entries in the last 7 days, populating `generate_weekly_letter()`'s 24-hour cache ahead of time:
+
+```bash
+python manage.py generate_weekly_letters
+```
+
+Intended to run nightly via Railway Cron, so that when a user actually opens `GET /api/companion/weekly-letter/` during the day, it serves from cache instead of making a live Groq call. It shares `build_weekly_letter_context()` with the live endpoint, so the warmed cache entry is generated from the exact same data the endpoint would otherwise compute itself.
 
 ---
 
@@ -502,6 +528,7 @@ lueur-backend/
 │   ├── views.py           # GenerateResponseAPIView, AllHistoryAPIView, WeeklyLetterAPIView, ActivityEntryAPIView, calculate_streak()
 │   ├── serializers.py     # JournalEntrySerializer, JournalEntryCreateSerializer, ActivityEntryCreateSerializer (no user_id field)
 │   ├── ai_model.py        # Groq integration — generate_ai_response(), generate_weekly_letter(), shared _call_groq() retry helper
+│   ├── services.py        # build_weekly_letter_context(), warm_weekly_letter_cache() — shared by WeeklyLetterAPIView and generate_weekly_letters
 │   ├── luna_prompts.py    # LunaPromptProvider — language/gender-aware prompts, apply_gender_variant(), placeholder safety checks
 │   ├── crisis.py          # contains_crisis_language(), CRISIS_RESPONSE — English crisis detection (frozen, never edited)
 │   ├── crisis_ar.py       # contains_crisis_language_ar() — Arabic crisis detection (sibling module, runs alongside crisis.py)
@@ -511,7 +538,8 @@ lueur-backend/
 │   ├── urls.py            # App URL patterns
 │   ├── management/commands/
 │   │   ├── check_luna_prompts.py       # Fails if any Arabic Luna prompt is still placeholder text
-│   │   └── check_crisis_ar_keywords.py # Fails if the Arabic crisis keyword list is still placeholder text
+│   │   ├── check_crisis_ar_keywords.py # Fails if the Arabic crisis keyword list is still placeholder text
+│   │   └── generate_weekly_letters.py  # Nightly (Railway Cron) cache warm-up for the weekly-letter endpoint
 │   ├── tests.py
 │   └── migrations/
 ├── accounts/
@@ -581,14 +609,14 @@ heroku run python manage.py migrate
 - [x] `ALLOWED_HOSTS` restricted to specific Railway/production domains (no `"*"`)
 - [x] CORS headers (`django-cors-headers`) configured for the Flutter client's origin
 - [x] `GET /health/` available for uptime monitoring
-- [ ] Switch to PostgreSQL
-- [ ] Add error logging (Sentry) — referenced in the privacy policy as already in use; confirm `SENTRY_DSN` is actually set in this environment
+- [x] Confirm `DATABASE_URL` is set in Railway — PostgreSQL support is already implemented via `dj-database-url`/`psycopg2-binary`, this just verifies the env var is actually pointing at a Postgres instance in production rather than falling back to SQLite
+- [x] Error logging (Sentry) — `sentry_sdk.init()` with PII redaction is wired in `core/settings.py`; set `SENTRY_DSN` (and optionally `SENTRY_ENVIRONMENT`) in Railway to activate it
 
 ---
 
 ## Admin Dashboard
 
-A staff-only operational dashboard is available at `/admin/` (stock Django Admin — no third-party theme). Staff (`is_staff=True`) accounts can:
+A staff-only operational dashboard is available at `/admin/` — stock Django Admin functionality, skinned with `django-jazzmin` (Bootswatch "united" theme, dark sidebar, custom per-model icons, locked to light mode). Staff (`is_staff=True`) accounts can:
 
 - Browse and search `JournalEntry` journal content (filterable by date, entry_type, and crisis-flagged status), including deleting individual rows or a bulk selection via the stock Django Admin delete action — this is separate from the self-service `entries/<id>/delete/` and `entries/delete-all/` API endpoints, which are scoped to a non-staff user's own entries only
 - Browse `User` accounts, with a per-user journal-entry count linking to that user's filtered entries
