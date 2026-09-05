@@ -31,11 +31,12 @@ CSRF_TRUSTED_ORIGINS = [
 
 AUTH_USER_MODEL = "accounts.User"
 
-# LocMemCache is per-process, so with multiple gunicorn workers (Procfile:
-# --workers 2) the Groq budget guard's counters (therapist/groq_budget_guard.py)
-# would be split across workers instead of shared, roughly doubling the real
-# ceiling it thinks it's enforcing. DatabaseCache uses the existing Postgres
-# instance already provisioned on Railway, so no new service is needed.
+# DatabaseCache, not LocMemCache: LocMemCache is per-process, so with multiple
+# gunicorn workers (Procfile: --workers 2) the Groq budget guard's counters
+# (therapist/groq_budget_guard.py) would be split across workers instead of
+# shared, roughly doubling the real ceiling it thinks it's enforcing.
+# DatabaseCache uses the existing Postgres instance already provisioned on
+# Railway, so no new service is needed.
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
