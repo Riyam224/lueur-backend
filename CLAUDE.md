@@ -71,7 +71,8 @@ This is a Django REST Framework application that provides an AI-powered wellness
 
 5. **Firebase Authentication** ([core/firebase_auth.py](core/firebase_auth.py))
    - `FirebaseAuthentication(BaseAuthentication)` — DRF authentication backend, set as the sole entry in `REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"]`
-   - Reads `Authorization: Bearer <firebase-id-token>`; missing/empty → unauthenticated (401 via `IsAuthenticated`); calls `firebase_admin.auth.verify_id_token(token)` — any exception (invalid signature, expired, wrong audience) → `AuthenticationFailed` (401)
+   - Reads `Authorization: Bearer <firebase-id-token>`; missing/empty → unauthenticated (401 via `IsAuthenticated`); calls `firebase_admin.auth.verify_id_token(token, check_revoked=True)` — any exception (invalid signature, expired, wrong audience) → `AuthenticationFailed` (401)
+   - `check_revoked=True` closes a token-reuse gap: without it, a Firebase ID token issued before its account was deleted would stay valid until its natural (short) expiry even though the account is gone. With it, `verify_id_token` raises `UserNotFoundError` for a deleted account, which falls into the same generic exception handler above and correctly returns 401 immediately rather than waiting for expiry.
    - Resolves the verified `uid` to an `accounts.User` via `get_or_create(firebase_uid=uid, ...)`, auto-creating on first sight; if Firebase provides no email (phone/anonymous sign-in) a synthetic `f"{uid}@firebase.local"` is used to satisfy `User.email`'s uniqueness constraint
    - `firebase_admin.initialize_app(...)` is guarded by `if not firebase_admin._apps` and only runs when `FIREBASE_CREDENTIALS_PATH` is set, so `manage.py check`/`makemigrations`/non-auth tests work without real credentials (e.g. CI)
    - Registers a `drf_spectacular` `OpenApiAuthenticationExtension` so the OpenAPI schema documents the Bearer scheme correctly
@@ -248,13 +249,15 @@ generate_ai_response(
 **Current State** ([core/settings.py](core/settings.py)):
 - ✅ `SECRET_KEY` uses environment variable with fallback
 - ✅ `DEBUG` uses environment variable (defaults to False)
-- ✅ `ALLOWED_HOSTS` configured for Railway (`["*", ".railway.app"]`)
+- ✅ `ALLOWED_HOSTS` is a specific allowlist, not a wildcard: `["web-production-f8628.up.railway.app", "127.0.0.1", ".railway.app"]` — **update the first entry if the Railway app domain changes**
 - ✅ `CSRF_TRUSTED_ORIGINS` includes the deployed Railway domain (`https://web-production-f8628.up.railway.app`) — **update this if the Railway app domain changes**
 - ✅ WhiteNoise configured for secure static file serving
 - ✅ Identity comes exclusively from a verified Firebase ID token (`request.user`, set by `core.firebase_auth.FirebaseAuthentication`) — no endpoint accepts a client-supplied user identifier from the request body or query parameters
 - ✅ Every `therapist/` and `accounts/` endpoint (except `verify/`) requires authentication and is scoped to `request.user`
 - ✅ Rate limiting: DRF `UserRateThrottle` as the default throttle class, with four scopes defined in `settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` — `user: 60/minute` (default), `ai_generate: 20/minute` (`GenerateResponseAPIView`), `luna_chat: 20/min` (`LunaChatRateThrottle`, also on `GenerateResponseAPIView`), `delete_all: 5/minute` (`DeleteAllJournalEntriesAPIView`); custom scope classes live in [therapist/throttles.py](therapist/throttles.py)
-- ⚠️ `ALLOWED_HOSTS = ["*"]` allows all hosts — restrict in production
+- ✅ Sentry (`sentry_sdk.init(...)`, gated on `SENTRY_DSN` and skipped under `TESTING`) is configured with `send_default_pii=False`, `include_local_variables=False` (Python captures stack-frame local variable values by default, which would otherwise leak journal/chat content on an exception even with request-body redaction in place), and a `before_send` hook that redacts any dict key in `_SENTRY_REDACT_FIELDS = {"thoughts", "content", "ai_reply", "transcript", "memory_summary"}` from `event["request"]["data"]`
+- ✅ TLS/cookie hardening — `SECURE_SSL_REDIRECT`, `SECURE_PROXY_SSL_HEADER`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE` (all `True`), and `SECURE_HSTS_SECONDS = 31536000` are set whenever `not DEBUG and not TESTING`, so local development (where `DEBUG=True`) is unaffected
+- ⚠️ `ALLOWED_HOSTS` includes the leading-dot entry `.railway.app`, which matches *any* subdomain of `railway.app` (Django's leading-dot wildcard), not just this app's own Railway domain — broader than strictly necessary, though far from the `["*"]`-allows-everything state this file previously (incorrectly) described
 - ⚠️ `JournalEntry` rows created before the Firebase migration (under the old client-supplied `user_id` scheme) are permanently inaccessible through the now-authenticated endpoints — accepted, documented tradeoff, not a bug (see `specs/002-migrate-authentication-simplejwt/spec.md` Edge Cases)
 
 **Environment Variables Required**:
@@ -404,11 +407,11 @@ ai_therapist_backend/
 1. Synchronous Groq API calls — blocks request during generation (except the fire-and-forget memory-summary update)
 2. SQLite — not suitable for concurrent production writes
 3. No input sanitization beyond serializer validation
-4. `ALLOWED_HOSTS = ["*"]` — too permissive for production
+4. `ALLOWED_HOSTS`'s `.railway.app` entry matches any subdomain of `railway.app`, broader than the one Railway domain this app actually runs on
 5. `JournalEntry` rows created before the Firebase migration (under the old client-supplied `user_id` scheme) are permanently inaccessible — not linked to any `accounts.User`; documented tradeoff, not a bug
 6. Pre-Firebase `accounts.User` rows (created back when SimpleJWT existed) have `firebase_uid = NULL` and are not automatically linked to a Firebase identity — out of scope for this migration
 7. Account deletion deletes matching `therapist.JournalEntry` rows by `user_id` during account deletion — there's no FK link between the two apps, so this is an explicit query-and-delete, not a database-level cascade
-8. `LocMemCache` (Django's default, used by both the Groq budget guard and the weekly-letter cache) does not share state across multiple worker processes — correct today on a single-process deploy, but would need a shared cache backend (e.g. Redis) if scaled to multiple workers/dynos
+8. The cache backend (`settings.CACHES["default"]`, used by both the Groq budget guard and the weekly-letter cache) is `DatabaseCache`, backed by a `django_cache_table` created via a real migration ([therapist/migrations/0007_create_django_cache_table.py](therapist/migrations/0007_create_django_cache_table.py)) — not `LocMemCache`. This already shares state correctly across multiple worker processes (unlike `LocMemCache`, which is per-process), so the multi-worker concern doesn't apply; the actual tradeoff is that every cache read/write is a database round trip, adding load to the same Postgres instance the app already depends on rather than to a dedicated cache store
 
 ## Deployment Checklist
 
@@ -422,8 +425,8 @@ ai_therapist_backend/
 - [x] Error logging configured (Sentry, gated on `SENTRY_DSN`)
 - [ ] **Set `GROQ_API_KEY`** (CRITICAL)
 - [ ] **Set `FIREBASE_CREDENTIALS_PATH`** (CRITICAL — points at a Firebase service-account JSON)
-- [ ] Restrict `ALLOWED_HOSTS` to specific domain
-- [ ] Use PostgreSQL
+- [ ] Consider dropping the `.railway.app` wildcard entry from `ALLOWED_HOSTS` now that the app has a fixed domain (the other two entries are already specific)
+- [x] Confirm `DATABASE_URL` is set in Railway — PostgreSQL support is already implemented via `dj-database-url`/`psycopg2-binary`, this just verifies the env var is actually pointing at a Postgres instance in production rather than falling back to SQLite
 - [ ] Set up monitoring dashboards
 
 ## Debugging Tips
