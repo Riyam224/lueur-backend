@@ -210,6 +210,7 @@ footer {
   </ul>
   <p>The app's API is capable of storing additional optional profile fields (such as phone number or bio) for future features, but the current version of the app does not collect or expose these.</p>
   <p>Account creation and sign-in are handled by <strong>Firebase Authentication</strong>, a service provided by Google. We do not directly store your password — Firebase manages this on our behalf. See Google's Firebase privacy documentation for details: <a href="https://firebase.google.com/support/privacy" target="_blank">firebase.google.com/support/privacy</a></p>
+  <p>You may sign in with either an email address and password, or Google Sign-In. If you use Google Sign-In, Google may share basic profile information (such as your name, email address, and profile photo) with the app, consistent with a standard OAuth sign-in flow.</p>
 
   <h3>Mood Journal Content</h3>
   <p>When you use Lueur's journaling feature, we collect:</p>
@@ -224,7 +225,8 @@ footer {
   <p>We store both your original journal entry and Luna's AI-generated response in our database, associated with your account, so you can view your journal history.</p>
 
   <h3>Usage Data</h3>
-  <p>We may automatically collect limited technical information, such as API request timestamps and error logs (used for debugging, via our error-monitoring service, Sentry). We do not collect device identifiers, location data, or advertising identifiers.</p>
+  <p>We may automatically collect limited technical information, such as API request timestamps and error logs (used for debugging, via our error-monitoring service, Sentry). We also use Firebase Analytics, a service provided by Google, to collect app usage data — such as screens viewed and features used — to help us understand how the app is used and improve the product. We do not collect device identifiers, location data, or advertising identifiers.</p>
+  <p>In addition to being stored on our servers, some data (such as your recent journal entries) is also cached locally on your device, so the app can continue to function during an unstable or offline connection.</p>
 
   <h2>How We Use Your Information</h2>
   <p>We use the information we collect to:</p>
@@ -243,6 +245,7 @@ footer {
   <table>
     <tr><th>Service</th><th>Purpose</th><th>Data Shared</th></tr>
     <tr><td>Firebase Authentication (Google)</td><td>User sign-up and login</td><td>Email address, authentication tokens</td></tr>
+    <tr><td>Firebase Analytics (Google)</td><td>App usage analytics</td><td>Anonymized usage/interaction data, no journal content</td></tr>
     <tr><td>Groq</td><td>AI-generated journal responses</td><td>Journal entry text (thoughts, emoji, limited conversation history)</td></tr>
     <tr><td>Railway</td><td>Application hosting</td><td>All application data (encrypted in transit and at rest)</td></tr>
     <tr><td>Sentry</td><td>Error monitoring</td><td>Technical error reports, which may include device/browser information. Journal entry text and other known sensitive fields are filtered out before an error report is ever sent. IP address, cookies, and full request bodies are not sent.</td></tr>
