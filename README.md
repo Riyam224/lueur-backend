@@ -51,7 +51,7 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 
 Deployed on Railway at [web-production-f8628.up.railway.app](https://web-production-f8628.up.railway.app).
 
-The screenshots below are taken from this branch running locally and reflect the current homepage, privacy policy, and API docs — nine clean endpoints, the `JournalEntry` schema (including `entry_type`/`payload`), the request lifecycle, and the production stack, all on one page.
+The screenshots below are taken from this branch running locally and reflect the current homepage and API docs — nine clean endpoints, the `JournalEntry` schema (including `entry_type`/`payload`), the request lifecycle, and the production stack, all on one page.
 
 > **Note:** the screenshots themselves predate the two `entries/` delete endpoints added below and haven't been regenerated in this change — the endpoint count in the text above is accurate, but the images won't show the two new DELETE cards until they're refreshed.
 
@@ -182,9 +182,7 @@ Interactive docs available at:
 
 #### Privacy Policy
 
-Served at `/privacy/` — required for both the Google Play and App Store listings.
-
-![Lueur privacy policy page](docs/screenshots/privacy-policy.png)
+`/privacy/` permanently redirects (301) to the canonical policy at [riyam224.github.io/lueur/privacy/](https://riyam224.github.io/lueur/privacy/), which is the single source of truth linked from the Google Play and App Store listings. This backend route exists only so old/bookmarked links keep resolving correctly.
 
 ---
 
@@ -555,10 +553,9 @@ lueur-backend/
 │   ├── tests.py
 │   └── migrations/
 ├── templates/
-│   ├── index.html         # Home page
-│   └── privacy.html       # Privacy policy (served at /privacy/)
+│   └── index.html         # Home page
 ├── docs/
-│   └── screenshots/       # Homepage, privacy policy, Swagger UI, ReDoc screenshots (this README)
+│   └── screenshots/       # Homepage, Swagger UI, ReDoc screenshots (this README)
 ├── manage.py
 ├── requirements.txt
 ├── Procfile                # Gunicorn config for Railway

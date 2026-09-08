@@ -24,6 +24,7 @@ from drf_spectacular.views import (
     SpectacularRedocView,
 )
 from django.views.generic import TemplateView
+from django.views.generic.base import RedirectView
 from django.http import JsonResponse
 
 from accounts.views import VerifyFirebaseTokenView
@@ -37,7 +38,13 @@ def health_check(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", TemplateView.as_view(template_name="index.html")),
-    path("privacy/", TemplateView.as_view(template_name="privacy.html"), name="privacy"),
+    path(
+        "privacy/",
+        RedirectView.as_view(
+            url="https://riyam224.github.io/lueur/privacy/", permanent=True
+        ),
+        name="privacy",
+    ),
     path("api/companion/", include("therapist.urls")),
     path("api/accounts/", include("accounts.urls")),
     path("api/auth/verify/", VerifyFirebaseTokenView.as_view(), name="verify-token-legacy"),

@@ -385,7 +385,7 @@ class VerifyFirebaseTokenTests(TestCase):
 
 class DeleteUserByEmailCommandTests(TestCase):
     """Exercises the web-based account-deletion request path promised in
-    templates/privacy.html for users who can't open the app: an operator
+    the privacy policy for users who can't open the app: an operator
     runs `manage.py delete_user_by_email <email>` on request. These tests
     hit the real database directly (not the API), confirming the command
     itself actually removes the rows rather than trusting a mocked
