@@ -23,6 +23,7 @@ from .serializers import (
     JournalEntrySerializer,
     JournalEntryCreateSerializer,
     ActivityEntryCreateSerializer,
+    ContentReportSerializer,
 )
 from datetime import timedelta
 from django.utils import timezone
@@ -213,6 +214,32 @@ generated.
         )
         data = JournalEntrySerializer(entry).data
         return Response(data, status=status.HTTP_201_CREATED)
+
+
+class ReportContentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Companion"],
+        summary="Report a Luna response",
+        description="""
+Flag an offensive, inaccurate, or otherwise problematic response from Luna
+for moderation review.
+        """,
+        request=ContentReportSerializer,
+        responses={
+            201: OpenApiResponse(description="Report submitted"),
+            400: OpenApiResponse(description="Invalid reason or missing reported_text"),
+            401: OpenApiResponse(description="Authentication required"),
+        },
+    )
+    def post(self, request):
+        input_serializer = ContentReportSerializer(data=request.data)
+        if not input_serializer.is_valid():
+            return Response(input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        input_serializer.save(user=request.user)
+        return Response({"detail": "Report submitted."}, status=status.HTTP_201_CREATED)
 
 
 class AllHistoryAPIView(APIView):

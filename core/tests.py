@@ -94,5 +94,33 @@ class SentryRedactionTests(SimpleTestCase):
         self.assertNotIn("entry", _SENTRY_REDACT_FIELDS)
         self.assertEqual(
             _SENTRY_REDACT_FIELDS,
-            {"thoughts", "content", "ai_reply", "transcript", "memory_summary"},
+            {
+                "thoughts",
+                "content",
+                "ai_reply",
+                "transcript",
+                "memory_summary",
+                "reported_text",
+                "user_message",
+                "comment",
+            },
         )
+
+    def test_content_report_fields_redacted(self):
+        event = {
+            "request": {
+                "data": {
+                    "reported_text": "a problematic Luna reply",
+                    "user_message": "what led to it",
+                    "comment": "this upset me",
+                    "reason": "offensive_harmful",
+                }
+            }
+        }
+
+        result = _sentry_before_send(event, {})
+
+        self.assertEqual(result["request"]["data"]["reported_text"], "[REDACTED]")
+        self.assertEqual(result["request"]["data"]["user_message"], "[REDACTED]")
+        self.assertEqual(result["request"]["data"]["comment"], "[REDACTED]")
+        self.assertEqual(result["request"]["data"]["reason"], "offensive_harmful")

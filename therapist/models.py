@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -36,3 +37,33 @@ class JournalEntry(models.Model):
         indexes = [
             models.Index(fields=["user_id", "-created_at"], name="therapist_userid_created_idx"),
         ]
+
+
+class ContentReportReason(models.TextChoices):
+    OFFENSIVE_HARMFUL = "offensive_harmful", "Offensive or harmful"
+    INACCURATE = "inaccurate", "Inaccurate or unhelpful"
+    UNCOMFORTABLE = "uncomfortable", "Made me uncomfortable"
+    OTHER = "other", "Other"
+
+
+class ContentReportStatus(models.TextChoices):
+    NEW = "new", "New"
+    REVIEWED = "reviewed", "Reviewed"
+    DISMISSED = "dismissed", "Dismissed"
+
+
+class ContentReport(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    # Snapshotted rather than FK'd to JournalEntry: this must remain a valid
+    # moderation record even if the original entry is later deleted or edited.
+    reported_text = models.TextField()
+    user_message = models.TextField(blank=True, default="")
+    reason = models.CharField(max_length=20, choices=ContentReportReason.choices)
+    comment = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=10, choices=ContentReportStatus.choices, default=ContentReportStatus.NEW
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user_id} | {self.reason} - {self.reported_text[:20]}".strip()

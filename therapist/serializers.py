@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import JournalEntry, EntryType
+from .models import ContentReport, JournalEntry, EntryType
 
 
 class JournalEntrySerializer(serializers.ModelSerializer):
@@ -91,3 +91,14 @@ class ActivityEntryCreateSerializer(serializers.Serializer):
 
         attrs["payload"] = payload
         return attrs
+
+
+class ContentReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContentReport
+        fields = ("reported_text", "user_message", "reason", "comment", "status")
+        extra_kwargs = {
+            "user_message": {"required": False},
+            "comment": {"required": False},
+            "status": {"read_only": True},
+        }

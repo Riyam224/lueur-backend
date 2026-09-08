@@ -28,6 +28,7 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 - **Context-aware tone** — `generate/` accepts an optional `context_flag` (currently `post_exercise_breathing`) that softens Luna's system prompt right after the user finishes a breathing exercise
 - **Per-user data isolation** — every entry is scoped to the authenticated user (`request.user`); no client-supplied identifier is ever accepted
 - **Entry deletion** — delete a single journal entry by id, or every entry at once, both hard-deleted and scoped strictly to the authenticated user; the bulk delete requires an explicit `{"confirm": true}` body and is rate-limited to 5/minute — see [Deleting Journal Entries](#deleting-journal-entries)
+- **Content reporting** — flag an offensive, inaccurate, or otherwise problematic Luna response without leaving the app, satisfying Google Play's AI-Generated Content policy requirement for chatbot apps; reports are snapshotted (independent of the original journal entry) and triaged by staff in Django admin — see [Reporting Content](#reporting-content)
 - **Groq free-tier budget guard** — `therapist/groq_budget_guard.py` tracks requests/min, requests/day, and tokens/min against Groq's free-tier ceilings (with an 80–90% safety margin) using Django's cache framework; when the shared budget is nearly exhausted, `generate/` returns a rotating "distracted friend" fallback line (bilingual, never mentions infrastructure) instead of calling Groq — a different, less common path than the network-failure fallback in the bullet above
 
 ### Accounts (`/api/accounts/`)
@@ -51,9 +52,9 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 
 Deployed on Railway at [web-production-f8628.up.railway.app](https://web-production-f8628.up.railway.app).
 
-The screenshots below are taken from this branch running locally and reflect the current homepage and API docs — nine clean endpoints, the `JournalEntry` schema (including `entry_type`/`payload`), the request lifecycle, and the production stack, all on one page.
+The screenshots below are taken from this branch running locally and reflect the current homepage and API docs — ten clean endpoints, the `JournalEntry` schema (including `entry_type`/`payload`), the request lifecycle, and the production stack, all on one page.
 
-> **Note:** the screenshots themselves predate the two `entries/` delete endpoints added below and haven't been regenerated in this change — the endpoint count in the text above is accurate, but the images won't show the two new DELETE cards until they're refreshed.
+> **Note:** the screenshots themselves predate the `entries/` delete endpoints and the `report/` endpoint added below and haven't been regenerated in this change — the endpoint count in the text above is accurate, but the images won't show those newer cards until they're refreshed.
 
 ![Lueur homepage — API overview, endpoints, JournalEntry schema, request lifecycle, and stack](docs/screenshots/homepage.png)
 
@@ -155,6 +156,7 @@ Every endpoint below requires `Authorization: Bearer <firebase-id-token>` **exce
 | POST | `/api/v1/companion/activity/` | Log a completed activity (breathing, sudoku, drawing, or letter_read) — no AI call, no crisis check |
 | DELETE | `/api/v1/companion/entries/<id>/delete/` | Delete one journal entry owned by the authenticated user. 404 if it doesn't exist or belongs to someone else |
 | DELETE | `/api/v1/companion/entries/delete-all/` | Delete every journal entry owned by the authenticated user. Requires `{"confirm": true}`; rate-limited to 5/minute |
+| POST | `/api/v1/companion/report/` | Report an offensive/inaccurate/uncomfortable Luna response for moderation review |
 
 ### Accounts — Base URL: `/api/v1/accounts/`
 
@@ -299,6 +301,38 @@ curl -X DELETE https://web-production-f8628.up.railway.app/api/v1/companion/entr
 - **429** — throttled past `delete_all`'s `5/minute` scope (`DeleteAllJournalEntriesRateThrottle` in `therapist/throttles.py`, tighter than the global `60/minute` default since this is destructive)
 
 Both views are plain `APIView` subclasses (not `ModelViewSet`/generics), matching the rest of `therapist/views.py`.
+
+---
+
+### Reporting Content
+
+**POST `/api/companion/report/`** — flags a Luna response for moderation review, satisfying Google Play's AI-Generated Content policy requirement that chatbot apps let users report problematic model output in-app.
+
+```json
+{
+  "reported_text": "the Luna response being reported",
+  "user_message": "the user message that led to it",
+  "reason": "offensive_harmful",
+  "comment": "optional free-text from the user"
+}
+```
+
+- **`reported_text`** — required; a snapshot of Luna's reply, stored standalone so the report remains a valid moderation record even if the original `JournalEntry` is later edited or deleted.
+- **`user_message`** — optional; a snapshot of the user's message for context.
+- **`reason`** — required; one of `offensive_harmful`, `inaccurate`, `uncomfortable`, `other`.
+- **`comment`** — optional free text.
+- `user` is always `request.user`; `status` always starts at `new` — neither is client-writable.
+
+**Response (201)**:
+
+```json
+{ "detail": "Report submitted." }
+```
+
+- **400** — missing `reported_text`/`reason`, or `reason` not one of the four valid choices
+- **401** — missing/invalid/expired token
+
+Reports are triaged in Django admin (`ContentReport`) — staff can filter by `reason`/`status` and update `status` (`new`/`reviewed`/`dismissed`) inline from the list view. `reported_text`, `user_message`, and `comment` are all redacted from Sentry crash reports via `core.settings._SENTRY_REDACT_FIELDS`, the same mechanism that already protects `thoughts`/`ai_reply`/`memory_summary`.
 
 ---
 
@@ -522,9 +556,9 @@ lueur-backend/
 │   ├── wsgi.py
 │   └── asgi.py
 ├── therapist/
-│   ├── models.py          # JournalEntry model (entry_type + payload for non-chat activities)
-│   ├── views.py           # GenerateResponseAPIView, AllHistoryAPIView, WeeklyLetterAPIView, ActivityEntryAPIView, calculate_streak()
-│   ├── serializers.py     # JournalEntrySerializer, JournalEntryCreateSerializer, ActivityEntryCreateSerializer (no user_id field)
+│   ├── models.py          # JournalEntry (entry_type + payload for non-chat activities), ContentReport (moderation reports)
+│   ├── views.py           # GenerateResponseAPIView, AllHistoryAPIView, WeeklyLetterAPIView, ActivityEntryAPIView, ReportContentView, calculate_streak()
+│   ├── serializers.py     # JournalEntrySerializer, JournalEntryCreateSerializer, ActivityEntryCreateSerializer, ContentReportSerializer (no user_id field)
 │   ├── ai_model.py        # Groq integration — generate_ai_response(), generate_weekly_letter(), shared _call_groq() retry helper
 │   ├── services.py        # build_weekly_letter_context(), warm_weekly_letter_cache() — shared by WeeklyLetterAPIView and generate_weekly_letters
 │   ├── luna_prompts.py    # LunaPromptProvider — language/gender-aware prompts, apply_gender_variant(), placeholder safety checks
@@ -616,6 +650,7 @@ heroku run python manage.py migrate
 A staff-only operational dashboard is available at `/admin/` — stock Django Admin functionality, skinned with `django-jazzmin` (Bootswatch "united" theme, dark sidebar, custom per-model icons, locked to light mode). Staff (`is_staff=True`) accounts can:
 
 - Browse and search `JournalEntry` journal content (filterable by date, entry_type, and crisis-flagged status), including deleting individual rows or a bulk selection via the stock Django Admin delete action — this is separate from the self-service `entries/<id>/delete/` and `entries/delete-all/` API endpoints, which are scoped to a non-staff user's own entries only
+- Triage `ContentReport` moderation reports (filterable by `reason`/`status`, searchable by reporter email or reported text) — `status` is editable inline from the list view for quick `new` → `reviewed`/`dismissed` triage — see [Reporting Content](#reporting-content)
 - Browse `User` accounts, with a per-user journal-entry count linking to that user's filtered entries
 - Run "Delete account and journal entries" on a selected user — a confirmation-gated action that calls the same `delete_user_account()` used by the self-service API and the `delete_user_by_email` management command
 - View a live "Overview" summary on the admin index page: active users, journal entries in the last 7/30 days, crisis-flagged entries in the last 7/30 days, and the average check-in streak across users with at least one entry
@@ -633,8 +668,8 @@ No non-staff account can reach `/admin/` — access is gated by Django's standar
 ## Testing
 
 ```bash
-python manage.py test           # full suite (120+ tests as of Sep 2026 — check runner output for current count)
-python manage.py test therapist # generate/history/weekly-letter/activity, entry deletion (single + bulk), bilingual crisis detection, localization/gender, streak calc
+python manage.py test           # full suite (190+ tests as of Sep 2026 — check runner output for current count)
+python manage.py test therapist # generate/history/weekly-letter/activity/report, entry deletion (single + bulk), bilingual crisis detection, localization/gender, streak calc
 python manage.py test accounts  # profile, preferred_language/gender, delete-account, verify, delete_user_by_email command
 ```
 
@@ -755,4 +790,4 @@ If you are in crisis, please reach out:
 
 Built with Django REST Framework · Powered by Groq API · Authenticated via Firebase Auth · English & Arabic supported
 
-Last Updated: September 5, 2026
+Last Updated: September 8, 2026

@@ -247,7 +247,16 @@ SENTRY_ENVIRONMENT = os.environ.get("SENTRY_ENVIRONMENT", "development")
 # Sentry, so any of these keys (however nested) get redacted from request
 # body data before an event is sent. Keys must match this API's actual
 # field/variable names (see therapist/serializers.py, therapist/ai_model.py).
-_SENTRY_REDACT_FIELDS = {"thoughts", "content", "ai_reply", "transcript", "memory_summary"}
+_SENTRY_REDACT_FIELDS = {
+    "thoughts",
+    "content",
+    "ai_reply",
+    "transcript",
+    "memory_summary",
+    "reported_text",
+    "user_message",
+    "comment",
+}
 
 
 def _sentry_redact(value):

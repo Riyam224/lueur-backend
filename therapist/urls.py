@@ -6,6 +6,7 @@ from .views import (
     ActivityEntryAPIView,
     DeleteJournalEntryAPIView,
     DeleteAllJournalEntriesAPIView,
+    ReportContentView,
 )
 
 urlpatterns = [
@@ -15,4 +16,5 @@ urlpatterns = [
     path("activity/", ActivityEntryAPIView.as_view()),
     path("entries/delete-all/", DeleteAllJournalEntriesAPIView.as_view()),
     path("entries/<int:entry_id>/delete/", DeleteJournalEntryAPIView.as_view()),
+    path("report/", ReportContentView.as_view()),
 ]

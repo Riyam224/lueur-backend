@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import JournalEntry
+from .models import ContentReport, JournalEntry
 
 
 def _truncate(text, length=50):
@@ -23,3 +23,17 @@ class JournalEntryAdmin(admin.ModelAdmin):
     @admin.display(description="AI response")
     def ai_response_preview(self, obj):
         return _truncate(obj.ai_response)
+
+
+@admin.register(ContentReport)
+class ContentReportAdmin(admin.ModelAdmin):
+    list_display = ("user", "reason", "status", "reported_text_preview", "created_at")
+    list_filter = ("reason", "status")
+    list_editable = ("status",)
+    date_hierarchy = "created_at"
+    search_fields = ("user__email", "reported_text", "comment")
+    readonly_fields = ("created_at",)
+
+    @admin.display(description="Reported text")
+    def reported_text_preview(self, obj):
+        return _truncate(obj.reported_text, length=80)

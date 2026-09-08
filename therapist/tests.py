@@ -31,7 +31,7 @@ from .luna_prompts import (
     apply_gender_variant,
     assert_no_placeholder_prompts,
 )
-from .models import JournalEntry
+from .models import ContentReport, JournalEntry
 from .views import calculate_streak
 
 
@@ -928,6 +928,113 @@ class BudgetGuardArabicFallbackTests(TestCase):
         self.assertIn(reply, BUDGET_EXCEEDED_MESSAGES_AR)
 
 
+class ContentReportTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        patcher = patch("core.firebase_auth.auth.verify_id_token")
+        self.mock_verify = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.mock_verify.side_effect = lambda token, **kwargs: {
+            "uid": token.removeprefix("faketoken-"),
+            "email": f"{token.removeprefix('faketoken-')}@example.com",
+        }
+
+    def test_report_requires_auth_returns_401_without_token(self):
+        response = self.client.post(
+            "/api/companion/report/",
+            {"reported_text": "some Luna reply", "reason": "offensive_harmful"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_authenticated_user_can_submit_report_tied_to_their_account(self):
+        from accounts.models import User
+
+        response = self.client.post(
+            "/api/companion/report/",
+            {
+                "reported_text": "a problematic Luna reply",
+                "user_message": "what led to it",
+                "reason": "offensive_harmful",
+                "comment": "this upset me",
+            },
+            format="json",
+            **_auth_header("user-a"),
+        )
+        self.assertEqual(response.status_code, 201)
+
+        user_a = User.objects.get(firebase_uid="user-a")
+        report = ContentReport.objects.get()
+        self.assertEqual(report.user_id, user_a.id)
+        self.assertEqual(report.reported_text, "a problematic Luna reply")
+        self.assertEqual(report.user_message, "what led to it")
+        self.assertEqual(report.reason, "offensive_harmful")
+        self.assertEqual(report.comment, "this upset me")
+        self.assertEqual(report.status, "new")
+
+    def test_user_message_and_comment_are_optional(self):
+        response = self.client.post(
+            "/api/companion/report/",
+            {"reported_text": "a reply", "reason": "inaccurate"},
+            format="json",
+            **_auth_header("user-a"),
+        )
+        self.assertEqual(response.status_code, 201)
+        report = ContentReport.objects.get()
+        self.assertEqual(report.user_message, "")
+        self.assertEqual(report.comment, "")
+
+    def test_invalid_reason_returns_400_and_creates_nothing(self):
+        response = self.client.post(
+            "/api/companion/report/",
+            {"reported_text": "a reply", "reason": "not_a_real_reason"},
+            format="json",
+            **_auth_header("user-a"),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(ContentReport.objects.count(), 0)
+
+    def test_status_is_not_client_settable(self):
+        response = self.client.post(
+            "/api/companion/report/",
+            {
+                "reported_text": "a reply",
+                "reason": "other",
+                "status": "reviewed",
+            },
+            format="json",
+            **_auth_header("user-a"),
+        )
+        self.assertEqual(response.status_code, 201)
+        report = ContentReport.objects.get()
+        self.assertEqual(report.status, "new")
+
+    def test_report_tied_to_correct_user_when_multiple_users_report(self):
+        from accounts.models import User
+
+        self.client.post(
+            "/api/companion/report/",
+            {"reported_text": "reply one", "reason": "offensive_harmful"},
+            format="json",
+            **_auth_header("user-a"),
+        )
+        self.client.post(
+            "/api/companion/report/",
+            {"reported_text": "reply two", "reason": "uncomfortable"},
+            format="json",
+            **_auth_header("user-b"),
+        )
+
+        user_a = User.objects.get(firebase_uid="user-a")
+        user_b = User.objects.get(firebase_uid="user-b")
+        self.assertEqual(
+            ContentReport.objects.get(reported_text="reply one").user_id, user_a.id
+        )
+        self.assertEqual(
+            ContentReport.objects.get(reported_text="reply two").user_id, user_b.id
+        )
+
+
 # /api/v1/... parity — same tests, run against the versioned prefix to
 # confirm it behaves identically to the existing /api/... routes.
 TherapistAuthIsolationTestsV1 = make_v1_variant(TherapistAuthIsolationTests)
@@ -936,3 +1043,4 @@ DeleteAllJournalEntriesTestsV1 = make_v1_variant(DeleteAllJournalEntriesTests)
 CrisisArPipelineIntegrationTestsV1 = make_v1_variant(CrisisArPipelineIntegrationTests)
 CrisisViewLocalizationTestsV1 = make_v1_variant(CrisisViewLocalizationTests)
 LunaChatThrottleTestsV1 = make_v1_variant(LunaChatThrottleTests)
+ContentReportTestsV1 = make_v1_variant(ContentReportTests)

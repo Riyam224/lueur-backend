@@ -847,7 +847,7 @@ footer {
       <div class="logo-dot"></div>
       Lueur API
     </a>
-    <div class="nav-v">v1.2.0</div>
+    <div class="nav-v">v1.3.0</div>
     <div class="nav-links">
       <a href="#endpoints" class="nl">Endpoints</a>
       <a href="#features"  class="nl">Stack</a>
@@ -879,7 +879,7 @@ footer {
           <a href="/api/redoc/" class="btn-s">📖 ReDoc Docs</a>
         </div>
         <div class="stats">
-          <div><div class="stat-n">9</div><div class="stat-l">Endpoints</div></div>
+          <div><div class="stat-n">10</div><div class="stat-l">Endpoints</div></div>
           <div><div class="stat-n">&lt;1s</div><div class="stat-l">Response time</div></div>
           <div><div class="stat-n">REST</div><div class="stat-l">Standard</div></div>
           <div><div class="stat-n">🔐</div><div class="stat-l">Firebase Auth required</div></div>
@@ -929,7 +929,7 @@ footer {
   <div class="wrap">
     <div class="rv">
       <span class="sec-tag">// endpoints</span>
-      <h2>Nine clean endpoints.<br>Infinite emotional support.</h2>
+      <h2>Ten clean endpoints.<br>Infinite emotional support.</h2>
       <p class="sec-desc">Firebase-authenticated REST API — all endpoints require a Bearer token. Identity is derived server-side from the verified Firebase token. <code>/api/v1/</code> is the current path prefix; the unprefixed <code>/api/</code> routes still work temporarily for app versions that haven't migrated yet.</p>
     </div>
 
@@ -1006,6 +1006,21 @@ footer {
           </div>
         </div>
         <div class="ep-badge">🗑️ Danger</div>
+      </div>
+
+      <div class="ep">
+        <div class="mth m-post">POST</div>
+        <div>
+          <div class="ep-path">/api/v1/companion/report/</div>
+          <div class="ep-desc">Flag an offensive, inaccurate, or otherwise problematic Luna response for moderation review — no need to leave the app. <code>reported_text</code> is snapshotted standalone, so the report stays valid even if the original entry is later edited or deleted. Reviewed by staff in Django admin.</div>
+          <div class="ep-pills">
+            <span class="pill">Body: reported_text, reason</span>
+            <span class="pill">Optional: user_message, comment</span>
+            <span class="pill pill-p">Auth: Bearer token</span>
+            <span class="pill">Content-Type: application/json</span>
+          </div>
+        </div>
+        <div class="ep-badge">🚩 Moderation</div>
       </div>
 
       <div class="ep">
@@ -1354,6 +1369,24 @@ entry = res.<span class="fn">json</span>()
 
 <span class="cm">// Response (200)</span>
 <span class="pu">{</span> <span class="ky">"deleted_count"</span><span class="pu">:</span> <span class="num">12</span> <span class="pu">}</span></pre>
+      </div>
+
+      <div class="cc">
+        <div class="cc-hdr">
+          <div class="cc-dots"><div class="cd"></div><div class="cd"></div><div class="cd"></div></div>
+          <div class="cc-lbl">cURL — report content</div>
+        </div>
+<pre><span class="cm"># Flag a Luna response for moderation review</span>
+<span class="fn">curl</span> <span class="kw">-X POST</span> \
+  <span class="str">https://web-production-f8628
+  .up.railway.app
+  /api/v1/companion/report/</span> \
+  <span class="kw">-H</span> <span class="str">"Authorization: Bearer &lt;firebase_id_token&gt;"</span> \
+  <span class="kw">-H</span> <span class="str">"Content-Type: application/json"</span> \
+  <span class="kw">-d</span> <span class="str">'{"reported_text":"...","reason":"offensive_harmful"}'</span>
+
+<span class="cm">// Response (201)</span>
+<span class="pu">{</span> <span class="ky">"detail"</span><span class="pu">:</span> <span class="str">"Report submitted."</span> <span class="pu">}</span></pre>
       </div>
 
       <div class="cc">
