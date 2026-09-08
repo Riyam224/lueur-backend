@@ -7,7 +7,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from core.test_utils import make_v1_variant
-from therapist.models import JournalEntry
+from therapist.models import ContentReport, JournalEntry
 
 from .admin import UserAdmin
 from .models import User
@@ -255,6 +255,22 @@ class DeleteAccountTests(TestCase):
         response = self.client.delete("/api/accounts/delete-account/")
         self.assertEqual(response.status_code, 401)
         self.assertTrue(User.objects.filter(firebase_uid="alice").exists())
+
+    @patch("accounts.views.firebase_auth_admin.delete_user")
+    def test_delete_account_removes_content_reports(self, mock_delete):
+        """ContentReport.user is a real FK (unlike JournalEntry's loose
+        user_id string), so this is deleted via Django's ORM-level CASCADE
+        on user.delete() rather than the explicit query-and-delete that
+        accounts.services.delete_user_account() does for JournalEntry."""
+        alice = User.objects.get(firebase_uid="alice")
+        ContentReport.objects.create(
+            user=alice, reported_text="a reply", reason="offensive_harmful"
+        )
+        response = self.client.delete(
+            "/api/accounts/delete-account/", **self.auth_header
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(ContentReport.objects.filter(user_id=alice.id).count(), 0)
 
 
 class TokenRevocationAfterDeletionTests(TestCase):

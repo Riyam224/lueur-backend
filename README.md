@@ -334,6 +334,8 @@ Both views are plain `APIView` subclasses (not `ModelViewSet`/generics), matchin
 
 Reports are triaged in Django admin (`ContentReport`) — staff can filter by `reason`/`status` and update `status` (`new`/`reviewed`/`dismissed`) inline from the list view. `reported_text`, `user_message`, and `comment` are all redacted from Sentry crash reports via `core.settings._SENTRY_REDACT_FIELDS`, the same mechanism that already protects `thoughts`/`ai_reply`/`memory_summary`.
 
+**Retention on account deletion**: `ContentReport.user` is a real `ForeignKey(..., on_delete=CASCADE)` — unlike `JournalEntry`, which is linked to a user only via a loose `user_id` string and is deleted by an explicit query in `delete_user_account()`. A user's `ContentReport` rows are removed automatically by Django's ORM-level cascade the moment `user.delete()` runs in that same function, with no extra code needed. See [Account Deletion](#account-deletion).
+
 ---
 
 ### Crisis Detection
@@ -491,7 +493,7 @@ or, on failure:
 
 ### Account Deletion
 
-**DELETE `/api/accounts/delete-account/`** (self-service, requires auth) — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then all matching `therapist.JournalEntry` rows, then the local Django row. If the Firebase-side call fails, the request returns `502` and nothing else is deleted (no orphaned Firebase identity, retryable).
+**DELETE `/api/accounts/delete-account/`** (self-service, requires auth) — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then all matching `therapist.JournalEntry` rows, then the local Django row (`user.delete()`). If the Firebase-side call fails, the request returns `502` and nothing else is deleted (no orphaned Firebase identity, retryable). That final `user.delete()` also cascades to the user's `therapist.ContentReport` rows via a real `ForeignKey(on_delete=CASCADE)` — no separate query needed, unlike `JournalEntry` above — so submitted content reports don't outlive the account that filed them.
 
 **Web-based deletion request** (no app access required) — The privacy policy (`/privacy/`) promises a way to request deletion for users who can't open the app. That promise is backed by `accounts.services.delete_user_account()` — the exact same function the API endpoint calls — exposed as a management command:
 
@@ -668,7 +670,7 @@ No non-staff account can reach `/admin/` — access is gated by Django's standar
 ## Testing
 
 ```bash
-python manage.py test           # full suite (190+ tests as of Sep 2026 — check runner output for current count)
+python manage.py test           # full suite (193+ tests as of Sep 2026 — check runner output for current count)
 python manage.py test therapist # generate/history/weekly-letter/activity/report, entry deletion (single + bulk), bilingual crisis detection, localization/gender, streak calc
 python manage.py test accounts  # profile, preferred_language/gender, delete-account, verify, delete_user_by_email command
 ```
