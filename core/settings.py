@@ -194,7 +194,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": """
 ## Welcome to the Lueur API 🌱
 
-Lueur is a wellness companion app featuring an AI companion named **Luna**, using a growing
+Lueur is an AI companion app featuring Luna, who responds to your mood check-ins and journal entries, using a growing
 plant metaphor to encourage daily check-ins. This API handles user accounts and
 AI-powered mood journaling.
 

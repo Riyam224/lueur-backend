@@ -1,4 +1,4 @@
-# Lueur Backend — AI Wellness Companion API
+# Lueur Backend — AI Companion API
 
 A Django REST Framework backend that provides AI-powered emotional support, plus account/profile management. Users share their mood with an emoji and thoughts, and **Luna** (the AI companion) responds with an empathetic, personalised message. All entries are saved per user for history tracking and weekly reflections.
 
