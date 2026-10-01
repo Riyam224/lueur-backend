@@ -1,11 +1,12 @@
 import logging
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.utils import timezone
 
 from accounts.models import User
 
-from .ai_model import generate_weekly_letter
+from .ai_model import _weekly_letter_cache_key, generate_weekly_letter
 from .crisis import contains_crisis_language
 from .models import JournalEntry
 
@@ -41,6 +42,29 @@ def build_weekly_letter_context(user_id):
         "entries_count": entries_count,
         "dominant_emoji": dominant_emoji,
     }
+
+
+def clear_weekly_letter_cache(user_id, preferred_language, gender):
+    """
+    Deletes the cached weekly letter built from the user's current entries.
+    Must run BEFORE those entries are deleted — the cache key is a hash of
+    the entry content, so it can't be rebuilt afterwards. Copies cached
+    from an older set of entries can't be found this way and simply expire
+    (WEEKLY_LETTER_CACHE_TIMEOUT); they're no longer served, since the
+    endpoint always rebuilds the key from the current entries.
+    """
+    context = build_weekly_letter_context(user_id)
+    if context is None:
+        return
+    cache.delete(
+        _weekly_letter_cache_key(
+            context["formatted_entries"],
+            context["entries_count"],
+            context["dominant_emoji"],
+            preferred_language,
+            gender,
+        )
+    )
 
 
 def warm_weekly_letter_cache(user_id):

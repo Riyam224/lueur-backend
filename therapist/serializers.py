@@ -15,6 +15,34 @@ class JournalEntrySerializer(serializers.ModelSerializer):
         }
 
 
+HISTORY_MAX_TOTAL_CHARS = 12000
+HISTORY_ITEM_MAX_CHARS = 5000
+_HISTORY_MESSAGE_KEYS = {"role", "content"}
+
+
+class HistoryMessageSerializer(serializers.Serializer):
+    # Only user/assistant turns are accepted — history is passed straight
+    # into the Groq messages list, so a client-supplied "system" turn would
+    # override Luna's prompt.
+    role = serializers.ChoiceField(choices=["user", "assistant"])
+    content = serializers.CharField()
+
+    def validate_content(self, value):
+        # An over-long item is cut to the first HISTORY_ITEM_MAX_CHARS
+        # characters instead of rejecting the whole request.
+        return value[:HISTORY_ITEM_MAX_CHARS]
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            extra = set(data) - _HISTORY_MESSAGE_KEYS
+            if extra:
+                raise serializers.ValidationError(
+                    "Only 'role' and 'content' are allowed; got unexpected "
+                    f"key(s): {', '.join(sorted(extra))}."
+                )
+        return super().to_internal_value(data)
+
+
 class JournalEntryCreateSerializer(serializers.ModelSerializer):
     thoughts = serializers.CharField(max_length=5000)
     context_flag = serializers.ChoiceField(
@@ -23,11 +51,7 @@ class JournalEntryCreateSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     history = serializers.ListField(
-        child=serializers.DictField(
-            child=serializers.CharField(
-                max_length=5000
-            ),
-        ),
+        child=HistoryMessageSerializer(),
         required=False,
         default=list,
         max_length=20,
@@ -41,6 +65,15 @@ class JournalEntryCreateSerializer(serializers.ModelSerializer):
             "history": {"write_only": True},
             "context_flag": {"write_only": True},
         }
+
+    def validate_history(self, history):
+        # Over the total cap: drop the oldest messages rather than rejecting
+        # the request, so a long conversation never breaks the chat.
+        history = [dict(message) for message in history]
+        total = sum(len(message["content"]) for message in history)
+        while history and total > HISTORY_MAX_TOTAL_CHARS:
+            total -= len(history.pop(0)["content"])
+        return history
 
 
 ACTIVITY_ENTRY_TYPE_CHOICES = [

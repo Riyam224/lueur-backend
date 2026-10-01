@@ -84,7 +84,8 @@ class DeleteAccountView(APIView):
             )
             return Response(
                 error_response(
-                    "Failed to delete Firebase identity. Account not deleted."
+                    "We couldn't delete your account just now, and nothing was "
+                    "removed. Please try again in a bit."
                 ),
                 status=status.HTTP_502_BAD_GATEWAY,
             )

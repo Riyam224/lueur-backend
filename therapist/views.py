@@ -12,12 +12,14 @@ from drf_spectacular.utils import (
 from .ai_model import (
     generate_ai_response,
     generate_weekly_letter,
+    LunaUnavailable,
     SESSION_END_TAG,
     trigger_memory_update,
 )
-from .services import build_weekly_letter_context
+from .services import build_weekly_letter_context, clear_weekly_letter_cache
 from .crisis import contains_crisis_language
 from .crisis_ar import contains_crisis_language_ar
+from .groq_budget_guard import get_fallback_message
 from .luna_prompts import LunaPromptProvider
 from .serializers import (
     JournalEntrySerializer,
@@ -26,12 +28,31 @@ from .serializers import (
     ContentReportSerializer,
 )
 from datetime import timedelta
+from django.db import transaction
 from django.utils import timezone
 from .models import JournalEntry
+from accounts.models import User
 from rest_framework.throttling import ScopedRateThrottle
 from .throttles import LunaChatRateThrottle, DeleteAllJournalEntriesRateThrottle
 
 logger = logging.getLogger(__name__)
+
+
+def _fallback_response(request, emoji, thoughts, ai_response):
+    """Same shape as a saved entry (every field the client reads), but
+    nothing is written to the journal: id is 0 and "fallback" is True."""
+    entry = JournalEntry(
+        user_id=str(request.user.id),
+        emoji=emoji,
+        thoughts=thoughts,
+        ai_response=ai_response,
+        crisis_flagged=False,
+        created_at=timezone.now(),
+    )
+    data = JournalEntrySerializer(entry).data
+    data["id"] = 0
+    data["fallback"] = True
+    return Response(data, status=status.HTTP_200_OK)
 
 
 class GenerateResponseAPIView(APIView):
@@ -157,9 +178,19 @@ The entry is automatically saved to your journal history.
                 memory_summary=request.user.memory_summary,
                 context_flag=context_flag,
             )
+        except LunaUnavailable:
+            logger.warning("Groq budget unavailable for user_id=%s", request.user.id)
+            return _fallback_response(
+                request, emoji, thoughts, get_fallback_message(request.user.preferred_language)
+            )
         except Exception as e:
             logger.error("Groq AI error: %s", e)
-            ai_reply = LunaPromptProvider.get_groq_error_fallback(request.user.preferred_language)
+            return _fallback_response(
+                request,
+                emoji,
+                thoughts,
+                LunaPromptProvider.get_groq_error_fallback(request.user.preferred_language),
+            )
 
         entry = JournalEntry.objects.create(
             user_id=str(request.user.id),
@@ -319,15 +350,17 @@ class DeleteJournalEntryAPIView(APIView):
 
 class DeleteAllJournalEntriesAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    throttle_classes = [ScopedRateThrottle, DeleteAllJournalEntriesRateThrottle]
-    throttle_scope = "delete_all"
+    # Only the per-user class: adding ScopedRateThrottle too (same
+    # "delete_all" scope, same cache key) counted every request twice.
+    throttle_classes = [DeleteAllJournalEntriesRateThrottle]
 
     @extend_schema(
         tags=["Companion"],
         summary="Delete all journal entries",
         description="""
-Permanently deletes every journal entry owned by the authenticated user.
-Requires `{"confirm": true}` in the request body to avoid accidental
+Permanently deletes every journal entry owned by the authenticated user,
+and also clears Luna's stored memory of them and their cached weekly
+letter. Requires `{"confirm": true}` in the request body to avoid accidental
 bulk deletion.
         """,
         request={
@@ -350,9 +383,17 @@ bulk deletion.
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        deleted_count, _ = JournalEntry.objects.filter(
-            user_id=str(request.user.id)
-        ).delete()
+        user_id = str(request.user.id)
+        # Must run before the entries are gone — the cache key is derived
+        # from their content.
+        clear_weekly_letter_cache(
+            user_id, request.user.preferred_language, request.user.gender
+        )
+        with transaction.atomic():
+            deleted_count, _ = JournalEntry.objects.filter(user_id=user_id).delete()
+            User.objects.filter(pk=request.user.pk).update(
+                memory_summary="", memory_updated_at=None
+            )
         return Response({"deleted_count": deleted_count}, status=status.HTTP_200_OK)
 
 

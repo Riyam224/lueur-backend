@@ -15,7 +15,6 @@ from .crisis import contains_crisis_language
 from .groq_budget_guard import (
     check_and_reserve_budget_with_retry,
     estimate_tokens,
-    get_fallback_message,
 )
 from .luna_prompts import LunaPromptProvider
 
@@ -25,6 +24,7 @@ WEEKLY_LETTER_CACHE_TIMEOUT = 60 * 60 * 24  # 24 hours
 HISTORY_WINDOW = 8
 SESSION_END_TAG = "[SESSION_END]"
 MEMORY_SUMMARY_MAX_TOKENS = 220
+MEMORY_SUMMARY_MAX_CHARS = 600
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -32,6 +32,11 @@ GROQ_MODEL = "openai/gpt-oss-20b"
 GROQ_TIMEOUT = (5, 15)  # (connect, read) seconds
 GROQ_MAX_ATTEMPTS = 2
 GROQ_RETRY_BACKOFF_SECONDS = 1
+
+
+class LunaUnavailable(Exception):
+    """Raised when Luna can't reply right now (Groq budget near the ceiling).
+    The caller shows an honest fallback line and saves nothing."""
 
 
 def _call_groq(payload):
@@ -82,7 +87,7 @@ def generate_ai_response(
 
     prompt_tokens = estimate_tokens(system_prompt + str(history) + thoughts)
     if not check_and_reserve_budget_with_retry(prompt_tokens, estimated_response_tokens=400):
-        return get_fallback_message(preferred_language)
+        raise LunaUnavailable("Groq budget unavailable")
 
     payload = {
         "model": GROQ_MODEL,
@@ -131,8 +136,10 @@ def _build_session_transcript(history, emoji, thoughts, ai_reply):
     return transcript
 
 
-def _generate_session_memory_summary(transcript, preferred_language, gender):
-    system_prompt = LunaPromptProvider.get_memory_summary_prompt(preferred_language, gender)
+def _generate_session_memory_summary(transcript, preferred_language, gender, previous_summary=None):
+    system_prompt = LunaPromptProvider.get_memory_summary_prompt(
+        preferred_language, gender, previous_summary
+    )
     transcript_text = "\n".join(f"{m['role']}: {m['content']}" for m in transcript)
 
     prompt_tokens = estimate_tokens(system_prompt + transcript_text)
@@ -154,14 +161,34 @@ def _generate_session_memory_summary(transcript, preferred_language, gender):
     return _call_groq(payload)
 
 
+def _truncate_summary(summary):
+    """Hard cap in case the model ignores the length instruction: cut at the
+    last sentence end that fits, else at the last space."""
+    if len(summary) <= MEMORY_SUMMARY_MAX_CHARS:
+        return summary
+    cut = summary[:MEMORY_SUMMARY_MAX_CHARS]
+    sentence_end = max(cut.rfind(p) for p in (".", "!", "?", "؟"))
+    if sentence_end > 0:
+        return cut[: sentence_end + 1]
+    return cut.rsplit(" ", 1)[0]
+
+
 def _update_user_memory(user_id, history, emoji, thoughts, ai_reply, preferred_language, gender):
     try:
         transcript = _build_session_transcript(history, emoji, thoughts, ai_reply)
-        summary = _generate_session_memory_summary(transcript, preferred_language, gender)
+        # Read fresh from the DB (not the request's user object) so the
+        # newest stored note is the one that gets built on.
+        previous_summary = (
+            User.objects.filter(id=user_id).values_list("memory_summary", flat=True).first()
+        )
+        summary = _generate_session_memory_summary(
+            transcript, preferred_language, gender, previous_summary
+        )
         if not summary or not summary.strip():
             return
         User.objects.filter(id=user_id).update(
-            memory_summary=summary.strip(), memory_updated_at=timezone.now()
+            memory_summary=_truncate_summary(summary.strip()),
+            memory_updated_at=timezone.now(),
         )
     except Exception:
         logger.exception("Failed to update memory summary for user_id=%s", user_id)
@@ -170,8 +197,8 @@ def _update_user_memory(user_id, history, emoji, thoughts, ai_reply, preferred_l
 
 
 def trigger_memory_update(user_id, history, emoji, thoughts, ai_reply, preferred_language, gender):
-    """Fire-and-forget: summarizes a just-ended session and overwrites the
-    user's stored memory on a background thread, so it never delays the
+    """Fire-and-forget: summarizes a just-ended session, folding it into the
+    user's previously stored memory, on a background thread, so it never delays the
     HTTP response already sent back to the user."""
     threading.Thread(
         target=_update_user_memory,

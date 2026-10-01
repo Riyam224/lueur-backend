@@ -35,18 +35,21 @@ This is a Django REST Framework application that provides an AI-powered wellness
    - Uses **class-based APIView** (DRF); every view requires `permission_classes = [IsAuthenticated]` (authenticated via `core.firebase_auth.FirebaseAuthentication`)
    - `GenerateResponseAPIView`: POST-only endpoint
      - Throttled: `ScopedRateThrottle` (`ai_generate` scope) plus `LunaChatRateThrottle` (`luna_chat` scope) — see [therapist/throttles.py](therapist/throttles.py)
-     - Validates input with `JournalEntryCreateSerializer` (`emoji`, `thoughts` required; `history` optional, max 20 items; optional `context_flag` — `user_id` is NOT accepted from the client)
+     - Validates input with `JournalEntryCreateSerializer` (`emoji`, `thoughts` required; `history` optional — see History Validation below; optional `context_flag` — `user_id` is NOT accepted from the client)
      - Extracts last 10 items from `history` to cap context window
      - Runs bilingual crisis-language detection ([therapist/crisis.py](therapist/crisis.py) for English, [therapist/crisis_ar.py](therapist/crisis_ar.py) for Arabic) before ever calling Groq; on a hit, saves a `crisis_flagged=True` entry with a canned crisis response and returns immediately, skipping the AI call
      - Otherwise calls `generate_ai_response(emoji, thoughts, history, preferred_language, gender, memory_summary=..., context_flag=...)` from ai_model, passing the user's `preferred_language`/`gender`/stored `memory_summary`
-     - On AI error: catches exception, saves a localized fallback message, still returns 200
+     - If Luna can't reply — `LunaUnavailable` (Groq budget miss) or any other exception (Groq error) — **nothing is saved** and no memory update is triggered. Returns 200 with the same fields as a normal entry (`id`, `user_id`, `emoji`, `thoughts`, `ai_response`, `created_at`, `entry_type`, `payload`, `crisis_flagged`) built from an unsaved `JournalEntry`, with `id: 0`, `crisis_flagged: false`, and an extra `"fallback": true` (`_fallback_response()` in views.py). `ai_response` is `get_fallback_message(lang)` for a budget miss or `LunaPromptProvider.get_groq_error_fallback(lang)` for a Groq error. Normal replies have no `fallback` key
      - Creates `JournalEntry` with `user_id=str(request.user.id)` and returns serialized data (200)
-     - Luna may include `[SESSION_END]` tag in `ai_response` when the user feels resolved — this fires `trigger_memory_update(...)`, a fire-and-forget background thread that summarizes the session and updates `accounts.User.memory_summary` (see Cross-Session Memory below)
+     - Luna may include `[SESSION_END]` tag in `ai_response` when the user feels resolved — this fires `trigger_memory_update(...)`, a fire-and-forget background thread that folds the session into the user's existing `accounts.User.memory_summary` (see Cross-Session Memory below)
    - `ActivityEntryAPIView`: POST-only endpoint — logs a completed non-chat activity (`breathing`, `sudoku`, `drawing`, `letter_read`) via `ActivityEntryCreateSerializer`, which validates `payload` shape per `entry_type`; no AI response generated (201)
    - `AllHistoryAPIView`: GET-only endpoint
      - Returns entries filtered by `str(request.user.id)`, ordered by `created_at` DESC
    - `DeleteJournalEntryAPIView`: DELETE-only endpoint, `entries/<int:entry_id>/delete/` — deletes a single entry owned by the authenticated user (404 if not found/not owned)
-   - `DeleteAllJournalEntriesAPIView`: DELETE-only endpoint, `entries/delete-all/` — throttled (`delete_all` scope, `DeleteAllJournalEntriesRateThrottle`); requires `{"confirm": true}` in the body (400 otherwise); deletes every entry owned by the user
+   - `DeleteAllJournalEntriesAPIView`: DELETE-only endpoint, `entries/delete-all/` — throttled 5/minute per user by `DeleteAllJournalEntriesRateThrottle` (`delete_all` scope) as its **only** throttle class (don't add `ScopedRateThrottle` back: with the same scope it shares the cache key and counts every request twice); requires `{"confirm": true}` in the body (400 otherwise). On confirm it:
+     1. Calls `clear_weekly_letter_cache(user_id, preferred_language, gender)` ([therapist/services.py](therapist/services.py)) **before** deleting — the weekly-letter cache key is a hash of the entry content, so it must be rebuilt from the current entries first (no per-user cache key exists; older cached copies just expire within 24h and are never served)
+     2. In one transaction, deletes every entry owned by the user and resets `memory_summary = ""` / `memory_updated_at = None` on the user
+     3. Returns `{"deleted_count": N}` (200); other users' entries, memory, and cached letters are never touched
    - `WeeklyLetterAPIView`: GET-only endpoint
      - Fetches last 7 days of entries for `str(request.user.id)` via `build_weekly_letter_context()` ([therapist/services.py](therapist/services.py))
      - Returns `{"letter": null, "reason": "not_enough_entries"}` if fewer than 2 entries
@@ -61,12 +64,16 @@ This is a Django REST Framework application that provides an AI-powered wellness
    - Makes REST POST to `https://api.groq.com/openai/v1/chat/completions`, with retry (2 attempts, 1s backoff) and a guard against empty content (gpt-oss can spend its whole token budget on internal reasoning and return nothing — that's treated as a failure so the caller falls back)
    - System prompt is built per-request by `LunaPromptProvider` ([therapist/luna_prompts.py](therapist/luna_prompts.py)), which is language-aware (`preferred_language`: `en`/`ar`) and, for Arabic, gender-aware (`gender`), and folds in the user's stored `memory_summary` and an optional `context_flag` (e.g. `post_exercise_breathing`)
    - Generation params: `temperature=0.85`, `max_tokens=400`, `reasoning_effort="low"`, `top_p=0.9`, `frequency_penalty=0.6`, `presence_penalty=0.5`
-   - Before every Groq call, [therapist/groq_budget_guard.py](therapist/groq_budget_guard.py) reserves estimated token budget against Groq's free-tier limits using Django's cache framework as the counter store; a budget miss returns a localized fallback message without calling Groq
+   - Before every Groq call, [therapist/groq_budget_guard.py](therapist/groq_budget_guard.py) reserves estimated token budget against Groq's free-tier limits using Django's cache framework as the counter store; on a budget miss `generate_ai_response()` raises `LunaUnavailable` (defined in ai_model.py) without calling Groq — it never returns fallback text itself, so fallback text can't be saved as if Luna wrote it
    - **No local model loading** — stateless, synchronous API calls (except the fire-and-forget memory-summary call, which runs on a background thread)
 
 4. **Serializers** ([therapist/serializers.py](therapist/serializers.py))
    - `JournalEntrySerializer`: full read serializer — `fields = "__all__"`, `user_id`/`ai_response`/`created_at`/`id`/`crisis_flagged` read-only
-   - `JournalEntryCreateSerializer`: write serializer for `generate/` — exposes `emoji`, `thoughts` (max 5000 chars), optional `history` (write-only, max 20 items), optional `context_flag` (write-only, currently only `post_exercise_breathing`) — `user_id` is not client-writable
+   - `JournalEntryCreateSerializer`: write serializer for `generate/` — exposes `emoji`, `thoughts` (max 5000 chars), optional `history` (write-only, list of `HistoryMessageSerializer`), optional `context_flag` (write-only, currently only `post_exercise_breathing`) — `user_id` is not client-writable
+   - **History Validation** (`HistoryMessageSerializer` + `JournalEntryCreateSerializer.validate_history`):
+     - **400** for: a `role` other than `user`/`assistant` (a client `system` turn would override Luna's prompt, since history goes straight into the Groq messages list), any key other than `role`/`content`, a non-dict item, a missing `content`, or more than 20 items
+     - **Not rejected**: a single `content` longer than `HISTORY_ITEM_MAX_CHARS` (5000) is cut to its first 5000 characters; then, if the total `content` length exceeds `HISTORY_MAX_TOTAL_CHARS` (12000), the **oldest** messages are dropped until it fits
+     - Validated items are returned as plain `{"role", "content"}` dicts
    - `ActivityEntryCreateSerializer`: plain (non-model) serializer for `activity/` — `entry_type` (required, any `EntryType` except `mood_chat`) + `payload`, with per-`entry_type` payload validation
 
 5. **Firebase Authentication** ([core/firebase_auth.py](core/firebase_auth.py))
@@ -80,15 +87,17 @@ This is a Django REST Framework application that provides an AI-powered wellness
 6. **Accounts App** ([accounts/](accounts/)) — account/profile management only; Firebase owns all credential/identity flows
    - **Model** ([accounts/models.py](accounts/models.py)): `User` (`AUTH_USER_MODEL = "accounts.User"`, extends `AbstractUser`, email is `USERNAME_FIELD`, optional unique `username`, nullable unique indexed `firebase_uid`, `full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`, `preferred_language` (`en`/`ar`, default `en`), `is_verified`, `memory_summary`/`memory_updated_at` — see Cross-Session Memory below). No `PasswordResetToken`/`EmailVerificationToken`/`profile_image` — removed in the Firebase migration.
    - **Manager** ([accounts/managers.py](accounts/managers.py)): `UserManager.create_user`/`create_superuser`, email-based (still used by `createsuperuser` for admin access; regular users are created via `FirebaseAuthentication`'s `get_or_create`)
-   - **Views** ([accounts/views.py](accounts/views.py)): only `MeView` (GET/PATCH `/me/`) and `DeleteAccountView` (DELETE `/delete-account/`); every view operates on `request.user` only — no endpoint accepts another user's identifier. `DeleteAccountView` calls `firebase_admin.auth.delete_user(firebase_uid)` first; on failure it logs and returns `502` **without** deleting the local row (no orphaned Firebase identity)
+   - **Views** ([accounts/views.py](accounts/views.py)): only `MeView` (GET/PATCH `/me/`) and `DeleteAccountView` (DELETE `/delete-account/`); every view operates on `request.user` only — no endpoint accepts another user's identifier. `DeleteAccountView` calls `delete_user_account()`, which calls `firebase_admin.auth.delete_user(firebase_uid)` first; on failure it logs and returns `502` ("We couldn't delete your account just now, and nothing was removed. Please try again in a bit.") **without** deleting the local row (no orphaned Firebase identity)
    - **Serializers** ([accounts/serializers.py](accounts/serializers.py)): `UserSerializer` (read-only, full profile including `preferred_language`) and `UserProfileUpdateSerializer` (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`, `preferred_language` only — `firebase_uid`/`email`/`username`/staff/memory fields are never in `Meta.fields`, so extra payload keys are silently ignored)
    - **Validators** ([accounts/validators.py](accounts/validators.py)): phone format only (password-strength and profile-image validators removed)
-   - **Services** ([accounts/services.py](accounts/services.py)): `success_response`/`error_response` envelope helpers, plus account-deletion logic
+   - **Services** ([accounts/services.py](accounts/services.py)): `success_response`/`error_response` envelope helpers, plus `delete_user_account()` — shared by the API, the admin "Delete account and journal entries" action, and the `delete_user_by_email` management command. Firebase's `UserNotFoundError` is treated as **success** (the identity is already gone): it's logged as a warning and the user's `JournalEntry` rows and local `User` row are still deleted. Any other Firebase error is re-raised and nothing local is deleted
    - **Response envelope**: every `accounts/` endpoint returns `{"success": bool, "message": str, "data": {...}}` or `{"success": false, "message": str, "errors": {...}}` — except auth failures, which return DRF's default `{"detail": "..."}` 401 shape (auth runs before any view code)
 
 7. **Cross-Session Memory** ([therapist/ai_model.py](therapist/ai_model.py), [accounts/models.py](accounts/models.py))
    - `accounts.User` carries `memory_summary` (TextField, default `""`) and `memory_updated_at` (nullable DateTimeField)
-   - When Luna's reply in `GenerateResponseAPIView` contains `[SESSION_END]` (`SESSION_END_TAG`), `trigger_memory_update(...)` spawns a daemon thread that builds a redacted transcript of the session (crisis-language content is replaced with `"(a difficult moment)"` before being sent to Groq), asks Groq for a short summary via `LunaPromptProvider.get_memory_summary_prompt(...)`, and overwrites `memory_summary`/`memory_updated_at` on success
+   - When Luna's reply in `GenerateResponseAPIView` contains `[SESSION_END]` (`SESSION_END_TAG`), `trigger_memory_update(...)` spawns a daemon thread that builds a redacted transcript of the session (crisis-language content is replaced with `"(a difficult moment)"` before being sent to Groq), reads the user's current `memory_summary` fresh from the DB, and asks Groq via `LunaPromptProvider.get_memory_summary_prompt(lang, gender, previous_summary)` to **update** that note rather than replace it (`PREVIOUS_MEMORY_EN`/`_AR` is appended when a previous note exists)
+   - The memory prompt asks for what a friend would remember — people in their life, plans and things coming up, what they enjoy, what they're excited or worried about — in 2–4 sentences, under about 600 characters. The stored result is hard-capped at `MEMORY_SUMMARY_MAX_CHARS` (600) by `_truncate_summary()`, cut at the last sentence end that fits
+   - `memory_summary`/`memory_updated_at` are cleared by `DELETE entries/delete-all/` and removed with the account on account deletion
    - This runs after the HTTP response is already sent, so it never adds latency to the request; a Groq budget miss or error just skips that turn's update (silently logged), leaving the prior `memory_summary` in place
    - The stored `memory_summary` is fed back into `generate_ai_response(...)`'s system prompt on every subsequent chat turn, giving Luna continuity across separate sessions
 
@@ -127,7 +136,7 @@ All endpoints below require `Authorization: Bearer <firebase-id-token>` and are 
 - `GET /api/companion/history/` — Retrieve all entries for the authenticated user
 - `GET /api/companion/weekly-letter/` — Get Luna's weekly letter for the authenticated user
 - `DELETE /api/companion/entries/<id>/delete/` — Delete a single journal entry owned by the authenticated user
-- `DELETE /api/companion/entries/delete-all/` — Delete every journal entry owned by the authenticated user (requires `{"confirm": true}`; throttled: `delete_all` scope)
+- `DELETE /api/companion/entries/delete-all/` — Delete every journal entry owned by the authenticated user, and reset their `memory_summary`/`memory_updated_at` and cached weekly letter (requires `{"confirm": true}`; throttled: 5/minute per user)
 - `GET /api/accounts/me/` — Get the authenticated user's profile
 - `PATCH /api/accounts/me/` — Update editable profile fields (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`, `preferred_language` only)
 - `DELETE /api/accounts/delete-account/` — Delete the user's Firebase identity and local account permanently
@@ -142,6 +151,17 @@ Registration, login, logout, token refresh, password reset, email verification, 
 - PEP 8 compliant
 - Django naming conventions followed
 - DRF best practices applied (class-based views, serializers)
+
+### Tone Rule (Luna's voice)
+
+Everything a user can read — chat prompts, memory prompt, weekly letter prompt, fallback replies, crisis messages, error texts — follows one rule, in English **and** Arabic: Luna is a friendly companion, like a close mate. Short, warm, casual sentences; never clinical, therapeutic, or medical.
+
+- Don't use: therapy/therapist/therapeutic, treatment, symptoms, disorder, diagnosis, mental health, coping, patient, session, support services, clinical, medical, counseling — or the Arabic equivalents (علاج, معالج, أعراض, اضطراب, تشخيص, الصحة النفسية, التأقلم, مريض, جلسة, خدمات الدعم, طبي)
+- Crisis messages (`therapist.crisis.CRISIS_RESPONSE`, `luna_prompts.CRISIS_RESPONSE_AR`) must still contain real help — findahelpline.com and the local emergency number — in a caring friend's voice. The Arabic crisis text is one gender-neutral text for every user (no `{male/female}` markers)
+- AI honesty: Luna doesn't volunteer that she's an AI, but if the user sincerely asks, she answers honestly and warmly (chat prompts EN/AR). The chat prompt heading is "ENDING THE CHAT"; the `[SESSION_END]` tag itself is a protocol token and must stay unchanged
+- Fallback lines (`groq_budget_guard.BUDGET_EXCEEDED_MESSAGES`/`_AR`, `GROQ_ERROR_FALLBACK_EN`/`_AR`) are honest and warm ("Luna can't reply right now, give me a minute and try again? 🌿") — never a human excuse ("got distracted", "dropped my phone", "irl") and never a system error; Arabic lines are gender-neutral
+- Weekly letter: a short, warm note from a friend ("Hey friend," / "أهلاً،") — no mood analysis or "week in review", and nothing heavy brought up
+- **Enforced by `ToneRuleTests`** in [therapist/tests.py](therapist/tests.py): it scans every user-facing string and Luna-voiced prompt (crisis EN/AR, all fallbacks, weekly-letter/memory/previous-memory prompts, memory framing, post-exercise context, gender instructions) for the banned EN/AR words (`find_banned_tone_words()`). The chat prompts' `NEVER:` / `ممنوع نهائياً:` blocks are stripped before scanning — they must keep naming what's forbidden — and so are a short allowlist of opening negations ("not counseling a client", "never therapy-speak", "وليست معالجة نفسية تتحدث مع مريض", ...) and the `[SESSION_END]` tag. The Arabic "medical" pattern is whole-word so it doesn't match inside طبيعي or خاطبي. When adding any new user-facing string, add it to the scan
 
 ### Database
 
@@ -171,7 +191,8 @@ Registration, login, logout, token refresh, password reset, email verification, 
 ### Testing
 
 - Therapist test file: [therapist/tests.py](therapist/tests.py) — run with `python manage.py test therapist`; mock `generate_ai_response()` to avoid real Groq calls and `core.firebase_auth.auth.verify_id_token` to avoid real Firebase calls
-- Accounts test file: [accounts/tests.py](accounts/tests.py) — run with `python manage.py test accounts`; mock `core.firebase_auth.auth.verify_id_token` for every authenticated request and `accounts.views.firebase_auth_admin.delete_user` for delete-account tests — no real Firebase project needed
+- Accounts test file: [accounts/tests.py](accounts/tests.py) — run with `python manage.py test accounts`; mock `core.firebase_auth.auth.verify_id_token` for every authenticated request and `accounts.services.firebase_auth_admin.delete_user` for delete-account tests (use `firebase_admin.auth.UserNotFoundError(...)` vs. e.g. `firebase_admin.exceptions.InternalError(...)` as `side_effect` to cover both deletion outcomes) — no real Firebase project needed
+- Notable test classes: `ToneRuleTests` (tone rule), `FallbackResponseTests` (unsaved 200 fallback shape), `DeleteAllThrottleTests` (5 succeed, 6th is 429), `DeleteAllEndToEndTests` (memory + letter-cache reset, other users untouched), `HistoryValidationTests` (roles/keys/truncation/trimming), `MemoryAcrossSessionsTests` (second summary built from the first, ≤ 600 chars). Throttle and weekly-letter state live in the cache — call `cache.clear()` in `setUp`
 
 Example:
 ```python
@@ -236,7 +257,7 @@ generate_ai_response(
 - Makes POST request to Groq API
 - Uses `openai/gpt-oss-20b` model
 - Returns AI-generated response text; may include `[SESSION_END]` tag at the end
-- Raises exceptions on failure — caller must handle
+- Raises `LunaUnavailable` on a Groq budget miss, and other exceptions on Groq failure — caller must handle (the view turns both into an unsaved `"fallback": true` response)
 
 ### Weekly Letter Cache Warm-Up
 
@@ -254,7 +275,7 @@ generate_ai_response(
 - ✅ WhiteNoise configured for secure static file serving
 - ✅ Identity comes exclusively from a verified Firebase ID token (`request.user`, set by `core.firebase_auth.FirebaseAuthentication`) — no endpoint accepts a client-supplied user identifier from the request body or query parameters
 - ✅ Every `therapist/` and `accounts/` endpoint (except `verify/`) requires authentication and is scoped to `request.user`
-- ✅ Rate limiting: DRF `UserRateThrottle` as the default throttle class, with four scopes defined in `settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` — `user: 60/minute` (default), `ai_generate: 20/minute` (`GenerateResponseAPIView`), `luna_chat: 20/min` (`LunaChatRateThrottle`, also on `GenerateResponseAPIView`), `delete_all: 5/minute` (`DeleteAllJournalEntriesAPIView`); custom scope classes live in [therapist/throttles.py](therapist/throttles.py)
+- ✅ Rate limiting: DRF `UserRateThrottle` as the default throttle class, with four scopes defined in `settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` — `user: 60/minute` (default), `ai_generate: 20/minute` (`GenerateResponseAPIView`), `luna_chat: 20/min` (`LunaChatRateThrottle`, also on `GenerateResponseAPIView`), `delete_all: 5/minute` (`DeleteAllJournalEntriesAPIView`, via `DeleteAllJournalEntriesRateThrottle` only); custom scope classes live in [therapist/throttles.py](therapist/throttles.py)
 - ✅ Sentry (`sentry_sdk.init(...)`, gated on `SENTRY_DSN` and skipped under `TESTING`) is configured with `send_default_pii=False`, `include_local_variables=False` (Python captures stack-frame local variable values by default, which would otherwise leak journal/chat content on an exception even with request-body redaction in place), and a `before_send` hook that redacts any dict key in `_SENTRY_REDACT_FIELDS = {"thoughts", "content", "ai_reply", "transcript", "memory_summary"}` from `event["request"]["data"]`
 - ✅ TLS/cookie hardening — `SECURE_SSL_REDIRECT`, `SECURE_PROXY_SSL_HEADER`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE` (all `True`), and `SECURE_HSTS_SECONDS = 31536000` are set whenever `not DEBUG and not TESTING`, so local development (where `DEBUG=True`) is unaffected
 - ⚠️ `ALLOWED_HOSTS` includes the leading-dot entry `.railway.app`, which matches *any* subdomain of `railway.app` (Django's leading-dot wildcard), not just this app's own Railway domain — broader than strictly necessary, though far from the `["*"]`-allows-everything state this file previously (incorrectly) described
@@ -289,12 +310,12 @@ gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
 ### POST Request Flow (Generate Endpoint)
 
 1. Request received at `POST /api/companion/generate/` — `FirebaseAuthentication` verifies the Bearer token; 401 if missing/invalid/expired; throttle scopes `ai_generate`/`luna_chat` checked (429 if exceeded)
-2. Input validated by `JournalEntryCreateSerializer` (`emoji`, `thoughts`, optional `history`, optional `context_flag`) — 400 if invalid
+2. Input validated by `JournalEntryCreateSerializer` (`emoji`, `thoughts`, optional `history`, optional `context_flag`) — 400 if invalid (bad history role/keys/non-dict item/>20 items); over-long history items are cut to 5000 chars and the oldest are dropped past 12000 total
 3. `history` extracted from validated data (last 10 items kept to cap context)
 4. Bilingual crisis-language check runs on `thoughts`; on a hit, a `crisis_flagged=True` entry with a canned crisis response is saved and returned immediately (200), skipping Groq entirely
-5. Otherwise `generate_ai_response(emoji, thoughts, history, preferred_language, gender, memory_summary=..., context_flag=...)` called; exception caught → localized fallback message used
-6. `ai_response` may contain `[SESSION_END]` tag — clients should detect this and close the session; it also triggers a background memory-summary update (see Cross-Session Memory)
-7. `JournalEntry` created with `user_id=str(request.user.id)`, emoji, thoughts, ai_response
+5. Otherwise `generate_ai_response(emoji, thoughts, history, preferred_language, gender, memory_summary=..., context_flag=...)` called; on `LunaUnavailable` or any other exception → returns 200 with an unsaved fallback (`id: 0`, `"fallback": true`, localized honest line) — nothing saved, steps 6–8 skipped
+6. `JournalEntry` created with `user_id=str(request.user.id)`, emoji, thoughts, ai_response
+7. `ai_response` may contain `[SESSION_END]` tag — clients should detect this and close the session; it also triggers a background memory-summary update (see Cross-Session Memory)
 8. Serialized response returned (200)
 
 ### GET Request Flow (History Endpoint)
@@ -315,12 +336,12 @@ gunicorn core.wsgi:application --bind 0.0.0.0:$PORT
 ### Error Handling
 
 - **401**: Missing/invalid/expired Firebase ID token, on every protected endpoint
-- **429**: Throttle scope exceeded (`user`, `ai_generate`, `luna_chat`, or `delete_all`)
+- **429**: Throttle scope exceeded (`user`, `ai_generate`, `luna_chat`, or `delete_all` — the last is 5/minute per user)
 - **400**: Invalid/missing required fields
-- **200 with fallback**: Groq API error in generate/ (entry still saved)
+- **200 with `"fallback": true` and `id: 0`**: Groq error or budget miss in generate/ — nothing saved; the client should let the user resend
 - **200 with letter: null**: Groq API error in weekly-letter/
 - **404**: Entry not found/not owned in `DELETE /api/companion/entries/<id>/delete/`
-- **502**: Firebase-side failure deleting a user during `DELETE /api/accounts/delete-account/`
+- **502**: Firebase-side failure deleting a user during `DELETE /api/accounts/delete-account/` (a Firebase `UserNotFoundError` is not a failure — local data is deleted and 200 is returned)
 
 ## Data Isolation
 
@@ -443,7 +464,7 @@ ai_therapist_backend/
 
 ---
 
-**Last Updated**: 2026-09-05
+**Last Updated**: 2026-10-01
 **Django Version**: 5.1.4
 **Python Version**: 3.11.9 (pinned via [runtime.txt](runtime.txt))
 **AI Provider**: Groq API (`openai/gpt-oss-20b`)

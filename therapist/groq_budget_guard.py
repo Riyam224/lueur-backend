@@ -37,41 +37,33 @@ SAFE_REQUESTS_PER_MINUTE = int(LIMIT_REQUESTS_PER_MINUTE * 0.8)   # 24
 SAFE_REQUESTS_PER_DAY = int(LIMIT_REQUESTS_PER_DAY * 0.9)          # ~12,960
 SAFE_TOKENS_PER_MINUTE = int(LIMIT_TOKENS_PER_MINUTE * 0.8)        # 4,800
 
-# Fallback lines for when we're near the ceiling. These must NEVER reveal
-# there's any system/infrastructure behind Luna — no "I'm getting a lot of
-# messages", no "server", no "try again in a minute" framing. A real friend
-# just seems distracted, mid-something-else, or slow to type back — never
-# explains a technical reason. Keep these consistent with LUNA_SYSTEM_PROMPT's
-# voice: casual, lowercase energy, texting-style, never a stock phrase.
-# Rotated randomly so repeated hits in the same session don't feel canned.
+# Fallback lines shown when Luna can't reply (budget near the ceiling, or a
+# Groq error). Be honest and warm: say plainly that Luna can't reply right
+# now and invite them to try again. Never make a human excuse ("got
+# distracted", "dropped my phone", "someone's talking to me irl"), and never
+# sound like a system error ("server", "error", "rate limit"). Same casual
+# voice as LUNA_SYSTEM_PROMPT. These are never saved to the journal.
+# Rotated randomly so repeated hits don't feel canned.
 BUDGET_EXCEEDED_MESSAGES = [
-    "wait sorry, got distracted for a sec — say that again? 👀",
-    "omg my bad, totally spaced out there. what were you saying?",
-    "hang on, someone's talking to me irl lol. one sec",
-    "ugh sorry, dropped my phone mid-scroll 😭 go on though",
-    "wait what, sorry i zoned out. tell me again?",
-    "hold that thought, brb 2 sec",
+    "Luna can't reply right now, give me a minute and try again? 🌿",
+    "sorry, Luna's a bit slow to reply right now. try again in a minute?",
+    "can't answer just this second, send it again in a minute? 🌿",
 ]
 
-# Arabic equivalents, same "distracted friend" voice. These stay
-# gender-neutral by design (polite/plural-adjacent phrasing) — no
-# gender substitution needed here, unlike the crisis response.
+# Arabic equivalents, gender-neutral by design (verbal-noun phrasing, no
+# gendered imperatives) — no gender substitution needed.
 BUDGET_EXCEEDED_MESSAGES_AR = [
-    "عذراً، انشغلت لحظة — هل يمكنك إعادة ذلك؟ 👀",
-    "آسفة، شردت قليلاً، ماذا كنت تقول؟",
-    "لحظة من فضلك، أحدهم يتحدث معي الآن، سأعود حالاً",
-    "عذراً، سقط الهاتف مني وأنا أستخدمه 😭 أكمل حديثك",
-    "آسف، شردت قليلاً، هل يمكنك التكرار؟",
-    "ابقَ على الفكرة، سأعود خلال ثوانٍ",
+    "لا تستطيع لونا الرد الآن، ممكن المحاولة مرة أخرى بعد دقيقة؟ 🌿",
+    "لونا بطيئة قليلاً في الرد الآن، ممكن المحاولة بعد دقيقة؟",
+    "لا تستطيع لونا الإجابة في هذه اللحظة، ممكن إرسالها مرة أخرى بعد قليل؟ 🌿",
 ]
 
 
 def get_fallback_message(preferred_language=None):
-    """Pick a random in-character 'distracted friend' line, in the
+    """Pick a random honest "Luna can't reply right now" line, in the
     requested language (anything other than 'ar' gets English — same
     missing/unrecognized-defaults-to-English behavior used elsewhere).
-    Call this fresh each time you need a fallback — never cache/reuse a
-    single instance, since repetition is what breaks the illusion."""
+    Call this fresh each time so repeated hits don't feel canned."""
     messages = BUDGET_EXCEEDED_MESSAGES_AR if preferred_language == "ar" else BUDGET_EXCEEDED_MESSAGES
     return random.choice(messages)
 
@@ -138,7 +130,7 @@ def check_and_reserve_budget_with_retry(
     bursts instead of failing immediately: rechecks every retry_interval
     seconds until max_wait_seconds elapses. A request-heavy second that
     clears up shortly after should resolve silently rather than falling
-    back to the "distracted friend" message.
+    back to the "Luna can't reply right now" message.
     """
     deadline = time.time() + max_wait_seconds
     while True:

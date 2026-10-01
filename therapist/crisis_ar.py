@@ -2,14 +2,25 @@
 crisis_ar.py
 
 Arabic-language sibling to therapist/crisis.py's English crisis-language
-detector. therapist/crisis.py is frozen — this module deliberately does
-NOT edit or extend it; it runs alongside it as a second, independent
-detection source (see integration in therapist/views.py).
+detector. The two modules are maintained separately (crisis.py is no
+longer frozen — it has its own keyword additions and a narrow safe-phrase
+list) and run alongside each other as independent detection sources (see
+integration in therapist/views.py).
 
-Mirrors crisis.py's detection philosophy exactly: broad matching,
-tolerant of false positives (a missed crisis message is worse than a
-false alarm), plain substring/regex matching — no NLP, nothing clever —
-so this stays as easy to audit as the English list.
+Mirrors crisis.py's detection philosophy: broad matching, tolerant of
+false positives (a missed crisis message is worse than a false alarm),
+plain substring/regex matching — no NLP, nothing clever — so this stays
+as easy to audit as the English list.
+
+Both the input text and the keywords pass through normalize_ar() before
+matching: diacritics and tatweel are stripped, and أ/إ/آ/ٱ -> ا, ى -> ي,
+ة -> ه, ؤ -> و, ئ -> ي. So a keyword written "أنتحر" also matches the
+common hamza-less spelling "انتحر" (e.g. dialect "بدي انتحر").
+
+Generic phrases that are only alarming in context ("بعد قليل", "أنا جاد",
+"لدي خطة", "اعتنوا بأنفسكم", "لا يوجد حل", "هذا هو الوقت") were removed
+from the list: on their own they flagged everyday messages ("لدي خطة
+للمذاكرة") and pre-empted Luna's normal reply.
 
 CRISIS_KEYWORDS_AR is a flat list (direct statements, self-harm, indirect/
 euphemistic expressions, hopelessness, intent, plan, time/imminence,
@@ -65,7 +76,7 @@ CRISIS_KEYWORDS_AR = [
 
     # Severe hopelessness
     "لا يوجد أي أمل", "فقدت كل الأمل", "لم يعد لدي أمل",
-    "لن تتحسن الأمور أبدا", "لا يمكن إصلاح أي شيء", "لا يوجد حل",
+    "لن تتحسن الأمور أبدا", "لا يمكن إصلاح أي شيء",
     "لا أرى أي مخرج", "أشعر أنني محاصر", "لا أستطيع الاستمرار",
     "لم أعد أستطيع الاستمرار", "لا أستطيع التحمل أكثر", "لم أعد أحتمل",
     "وصلت إلى أقصى ما أستطيع تحمله", "تعبت من الحياة", "كرهت حياتي",
@@ -81,12 +92,12 @@ CRISIS_KEYWORDS_AR = [
     # Intent indicators
     "أنوي فعل ذلك", "لدي نية لفعل ذلك", "اتخذت قراري", "قررت فعل ذلك",
     "أنا مصمم على ذلك", "لن أتراجع", "لا يستطيع أحد إيقافي",
-    "هذه المرة سأفعلها", "أنا جاد", "أصبحت مستعدا",
+    "هذه المرة سأفعلها", "أصبحت مستعدا",
     "أنا مستعد لفعل ذلك", "لم يعد لدي تردد", "لن أغير رأيي",
     "حسمت أمري", "سأنفذ ما قررته",
 
     # Plan indicators
-    "لدي خطة", "وضعت خطة", "أعددت خطة", "خططت لكل شيء",
+    "وضعت خطة", "أعددت خطة", "خططت لكل شيء",
     "أعرف كيف سأفعل ذلك", "أعرف الطريقة", "اخترت الطريقة",
     "حددت الطريقة", "أعددت ما أحتاج إليه", "جهزت كل شيء",
     "حضرت كل شيء", "وجدت وسيلة", "لدي الوسيلة", "الوسيلة أمامي",
@@ -95,9 +106,8 @@ CRISIS_KEYWORDS_AR = [
     "اخترت الوقت", "حددت الوقت", "رتبت كل شيء", "أنهيت ترتيباتي",
 
     # Time/imminence indicators
-    "بعد قليل", "خلال دقائق", "قبل الصباح", "عندما أبقى وحدي",
+    "خلال دقائق", "قبل الصباح", "عندما أبقى وحدي",
     "عندما ينام الجميع", "عندما يغادر الجميع", "لقد حان الوقت",
-    "هذا هو الوقت",
 
     # Farewell indicators
     "كتبت رسالة وداع", "أكتب رسالة وداع", "ودعت عائلتي",
@@ -105,7 +115,7 @@ CRISIS_KEYWORDS_AR = [
     "أعطيت أشيائي للآخرين", "وزعت ممتلكاتي", "رتبت ممتلكاتي",
     "رتبت أموري الأخيرة", "أغلقت حساباتي", "مسحت كل شيء",
     "أنهيت كل التزاماتي", "طلبت من الجميع أن يسامحوني",
-    "سامحوني جميعا", "اعتنوا بأنفسكم", "اعتنوا بعائلتي",
+    "سامحوني جميعا", "اعتنوا بعائلتي",
 
     # Attempt in progress
     "بدأت بالفعل", "فعلت ذلك بالفعل", "حاولت قتل نفسي",
@@ -117,12 +127,33 @@ CRISIS_KEYWORDS_AR = [
     "انتحار", "أنتحر", "أنهي حياتي", "إنهاء حياتي", "أقتل نفسي",
     "قتل نفسي", "نهاية حياتي", "إيذاء نفسي", "أؤذي نفسي",
     "جرح نفسي", "أجرح نفسي",
+
+    # Dialect forms (Levantine/Gulf/Egyptian). "انتحر" alone already
+    # matches after normalization; these are listed for auditability.
+    "بدي انتحر", "اريد انتحر", "ابي انتحر", "ابغى انتحر", "عايز انتحر",
+    "بدي اموت", "ابي اموت", "ابغى اموت", "عايز اموت", "اريد اموت",
+    "بدي اقتل حالي", "اقتل حالي", "بدي موت حالي", "اذي حالي",
 ]
-_CRISIS_PATTERN_AR = re.compile(r"|".join(re.escape(k) for k in CRISIS_KEYWORDS_AR), re.IGNORECASE)
+# Tashkeel (U+064B-U+0652), superscript alef (U+0670), tatweel (U+0640).
+_AR_DIACRITICS = re.compile("[\u064B-\u0652\u0670\u0640]")
+_AR_LETTER_MAP = str.maketrans({
+    "أ": "ا", "إ": "ا", "آ": "ا", "ٱ": "ا",
+    "ى": "ي", "ة": "ه", "ؤ": "و", "ئ": "ي",
+})
+
+
+def normalize_ar(text):
+    text = _AR_DIACRITICS.sub("", text).translate(_AR_LETTER_MAP)
+    return " ".join(text.split())
+
+
+_CRISIS_PATTERN_AR = re.compile(
+    r"|".join(re.escape(normalize_ar(k)) for k in CRISIS_KEYWORDS_AR), re.IGNORECASE
+)
 
 
 def contains_crisis_language_ar(text: str) -> bool:
-    return bool(text) and bool(_CRISIS_PATTERN_AR.search(text))
+    return bool(text) and bool(_CRISIS_PATTERN_AR.search(normalize_ar(text)))
 
 
 class CrisisArConfigurationError(RuntimeError):

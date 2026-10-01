@@ -870,9 +870,10 @@ footer {
         <p class="hero-desc">
           Lueur is an AI companion app where Luna tends to your
           emotional garden. Built with Flutter, Django REST Framework, and
-          Groq's openai/gpt-oss-20b for warm, near-instant responses —
-          with built-in crisis-language detection to keep sensitive
-          moments away from the AI and pointed at real human support.
+          Groq's openai/gpt-oss-20b for warm, near-instant replies in
+          English and Arabic — with built-in crisis-language detection to
+          keep sensitive moments away from the AI and pointed at real people
+          who can help.
         </p>
         <div class="btns">
           <a href="/api/docs/"  class="btn-p">⚡ Swagger UI</a>
@@ -938,12 +939,13 @@ footer {
         <div class="mth m-post">POST</div>
         <div>
           <div class="ep-path">/api/v1/companion/generate/</div>
-          <div class="ep-desc">Send an emoji + thoughts and receive a warm, empathetic AI response from Luna. Pass optional conversation history for multi-turn context, or a <code>context_flag</code> to soften her tone right after an exercise. Luna signals a resolved session with <code>[SESSION_END]</code> in her reply — which also triggers a background summary that's remembered for next time. Crisis-language is detected before any AI call and short-circuits to a static support response with <code>crisis_flagged: true</code>.</div>
+          <div class="ep-desc">Send an emoji + thoughts and get a warm, casual reply from Luna. Pass optional conversation history for multi-turn context — only <code>user</code>/<code>assistant</code> roles and <code>role</code>/<code>content</code> keys are accepted, and the oldest messages are trimmed past 12,000 characters — or a <code>context_flag</code> to soften her tone right after an exercise. Luna signals the end of a chat with <code>[SESSION_END]</code> in her reply, which also updates her short note about you for next time. Crisis language (English &amp; Arabic) is detected before any AI call and short-circuits to a caring message with real help and <code>crisis_flagged: true</code>. If Luna can't reply right now, you get an honest fallback line with <code>"fallback": true</code> and <code>id: 0</code> — and nothing is saved.</div>
           <div class="ep-pills">
             <span class="pill">Body: emoji, thoughts</span>
             <span class="pill">Optional: history[], context_flag</span>
             <span class="pill pill-p">Auth: Bearer token</span>
             <span class="pill pill-g">Returns: JournalEntry (+entry_type/payload)</span>
+            <span class="pill">Fallback: id 0 + fallback: true, not saved</span>
             <span class="pill">Content-Type: application/json</span>
           </div>
         </div>
@@ -997,7 +999,7 @@ footer {
         <div class="mth m-delete">DELETE</div>
         <div>
           <div class="ep-path">/api/v1/companion/entries/delete-all/</div>
-          <div class="ep-desc">Permanently deletes every journal entry owned by the authenticated user. Requires <code>{"confirm": true}</code> in the body — missing or false returns 400 without deleting anything. Rate-limited to 5/minute given how destructive it is.</div>
+          <div class="ep-desc">Permanently deletes every journal entry owned by the authenticated user — and clears what Luna remembers about them (memory note and cached weekly letter). Requires <code>{"confirm": true}</code> in the body — missing or false returns 400 without deleting anything. Rate-limited to 5/minute per user given how destructive it is.</div>
           <div class="ep-pills">
             <span class="pill">Body: confirm</span>
             <span class="pill pill-p">Auth: Bearer token</span>
@@ -1069,7 +1071,7 @@ footer {
         <div class="mth m-get">GET</div>
         <div>
           <div class="ep-path">/api/v1/companion/weekly-letter/</div>
-          <div class="ep-desc">Generate a personalised weekly letter from Luna based on the last 7 days of the authenticated user's entries. Requires at least 2 entries in the past week. Returns a warm 3–4 paragraph letter, dominant mood emoji, and streak stats.</div>
+          <div class="ep-desc">A short, warm note from Luna about the authenticated user's last 7 days — a couple of things they shared and some encouragement for the week ahead, never a mood analysis, and nothing heavy brought up. Requires at least 2 entries in the past week. Returns the 2–3 paragraph note plus stats (dominant emoji, streak).</div>
           <div class="ep-pills">
             <span class="pill pill-p">Auth: Bearer token</span>
             <span class="pill pill-g">Returns: letter + stats</span>
@@ -1091,15 +1093,16 @@ footer {
         <span class="model-badge">application/json</span>
       </div>
       <div class="model-fields">
-        <div class="mf"><span class="mf-name">id</span><span class="mf-type">integer</span><span class="mf-desc">Unique identifier, auto-incremented</span></div>
+        <div class="mf"><span class="mf-name">id</span><span class="mf-type">integer</span><span class="mf-desc">Unique identifier, auto-incremented — <code>0</code> on an unsaved fallback reply</span></div>
         <div class="mf"><span class="mf-name">user_id</span><span class="mf-type">string</span><span class="mf-desc">Internal user PK — derived from Firebase token server-side, never accepted from the client</span></div>
         <div class="mf"><span class="mf-name">entry_type</span><span class="mf-type">string</span><span class="mf-desc">One of mood_chat, breathing, sudoku, drawing, letter_read — defaults to mood_chat</span></div>
         <div class="mf"><span class="mf-name">emoji</span><span class="mf-type">string</span><span class="mf-desc">Mood emoji selected by user (e.g. 😔 😊 😰) — unused for non-mood_chat entries</span></div>
         <div class="mf"><span class="mf-name">thoughts</span><span class="mf-type">string</span><span class="mf-desc">User's written thoughts and feelings — unused for non-mood_chat entries</span></div>
-        <div class="mf"><span class="mf-name">ai_response</span><span class="mf-type">string</span><span class="mf-desc">Luna's empathetic AI-generated response — unused for non-mood_chat entries</span></div>
+        <div class="mf"><span class="mf-name">ai_response</span><span class="mf-type">string</span><span class="mf-desc">Luna's AI-generated reply — unused for non-mood_chat entries</span></div>
         <div class="mf"><span class="mf-name">payload</span><span class="mf-type">object</span><span class="mf-desc">Per-type extra data: breathing {duration_seconds}, sudoku {solved, duration_seconds, difficulty}, drawing {thumbnail_url}, letter_read {} — unused ({}) for mood_chat</span></div>
         <div class="mf"><span class="mf-name">created_at</span><span class="mf-type">datetime</span><span class="mf-desc">ISO 8601 timestamp of when entry was created</span></div>
         <div class="mf"><span class="mf-name">crisis_flagged</span><span class="mf-type">boolean</span><span class="mf-desc">True if the entry's thoughts matched crisis-language detection — Groq was never called for this entry</span></div>
+        <div class="mf"><span class="mf-name">fallback</span><span class="mf-type">boolean</span><span class="mf-desc">Only present (as true) on generate/ responses where Luna couldn't reply — nothing was saved and id is 0; let the user resend</span></div>
       </div>
     </div>
 
@@ -1184,17 +1187,17 @@ footer {
       <div class="fc">
         <div class="fc-ico" style="background:rgba(122, 90, 159,.1)">💾</div>
         <div class="fc-t">Persistent Storage</div>
-        <div class="fc-d">Every mood entry is saved to the database. Full journal history with timestamps and unique IDs.</div>
+        <div class="fc-d">Every mood entry is saved to the database. Full journal history with timestamps and unique IDs. Fallback lines ("Luna can't reply right now") are never saved.</div>
       </div>
       <div class="fc">
         <div class="fc-ico" style="background:rgba(156, 106, 9,.1)">🛟</div>
         <div class="fc-t">Crisis Detection</div>
-        <div class="fc-d">Journal text is checked for crisis language before it ever reaches Groq — at both the endpoint and the AI-service layer. Matches short-circuit to a static support response with real hotline numbers.</div>
+        <div class="fc-d">Journal text is checked for crisis language in English and Arabic (slang, dialect, and spelling variants included) before it ever reaches Groq. Matches short-circuit to a caring message pointing to findahelpline.com and local emergency numbers.</div>
       </div>
       <div class="fc">
         <div class="fc-ico" style="background:rgba(122, 90, 159,.1)">🧠</div>
         <div class="fc-t">Cross-Session Memory</div>
-        <div class="fc-d">When a session ends, Luna summarizes it on a background thread and stores a rolling memory on your profile — so future chats can pick up the thread without you repeating yourself.</div>
+        <div class="fc-d">When a chat ends, Luna updates a short note — people, plans, things you enjoy — building on the last one (max ~600 characters), so future chats can pick up the thread. Deleting all entries clears it.</div>
       </div>
     </div>
   </div>
@@ -1234,7 +1237,9 @@ footer {
 
 <span class="kw">final</span> entry = MoodEntryModel
   .<span class="fn">fromJson</span>(response.data);
-<span class="cm">// check entry.aiResponse for [SESSION_END]</span></pre>
+<span class="cm">// check entry.aiResponse for [SESSION_END]</span>
+<span class="cm">// if response.data['fallback'] == true: nothing was
+// saved (id is 0) — let the user resend</span></pre>
       </div>
 
       <div class="cc">
@@ -1408,7 +1413,7 @@ entry = res.<span class="fn">json</span>()
 
 <span class="cm">// Response</span>
 <span class="pu">{</span>
-  <span class="ky">"letter"</span><span class="pu">:</span> <span class="str">"Dear friend, ..."</span><span class="pu">,</span>
+  <span class="ky">"letter"</span><span class="pu">:</span> <span class="str">"Hey friend, ..."</span><span class="pu">,</span>
   <span class="ky">"stats"</span><span class="pu">: {</span>
     <span class="ky">"entry_count"</span><span class="pu">:</span>     <span class="num">5</span><span class="pu">,</span>
     <span class="ky">"dominant_emoji"</span><span class="pu">:</span>  <span class="str">"😔"</span><span class="pu">,</span>

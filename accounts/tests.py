@@ -548,3 +548,134 @@ class UserAdminDeleteAccountActionTests(TestCase):
         self.assertEqual(JournalEntry.objects.filter(user_id=str(user_id)).count(), 2)
         messages = [str(m) for m in response.context["messages"]]
         self.assertTrue(any("Failed to delete" in m for m in messages))
+
+
+class FirebaseUserNotFoundTreatedAsSuccessTests(TestCase):
+    """If the Firebase identity is already gone, every deletion path must
+    still delete the local user and their journal entries."""
+
+    def setUp(self):
+        from firebase_admin import auth as firebase_auth_admin
+
+        self.not_found = firebase_auth_admin.UserNotFoundError(
+            "No user record found for the given identifier."
+        )
+        self.user = User.objects.create(
+            email="gone@example.com", firebase_uid="gone-uid", username="gone-uid"
+        )
+        JournalEntry.objects.create(
+            user_id=str(self.user.id), emoji="😊", thoughts="one", ai_response="ok"
+        )
+
+    def _assert_local_data_deleted(self, user_id):
+        self.assertFalse(User.objects.filter(id=user_id).exists())
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(user_id)).count(), 0)
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    def test_api_delete_account(self, mock_delete):
+        mock_delete.side_effect = self.not_found
+        client = APIClient()
+        with patch("core.firebase_auth.auth.verify_id_token") as mock_verify:
+            mock_verify.return_value = {"uid": "gone-uid", "email": "gone@example.com"}
+            with self.assertLogs("accounts.services", level="WARNING"):
+                response = client.delete(
+                    "/api/accounts/delete-account/", **_auth_header("gone-uid")
+                )
+        self.assertEqual(response.status_code, 200)
+        self._assert_local_data_deleted(self.user.id)
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    def test_admin_action(self, mock_delete):
+        mock_delete.side_effect = self.not_found
+        superuser = User.objects.create_superuser(
+            email="admin2@example.com", password="irrelevant"
+        )
+        self.client.force_login(superuser)
+        response = self.client.post(
+            "/admin/accounts/user/",
+            {
+                "action": "delete_account_action",
+                "_selected_action": [str(self.user.pk)],
+                "post": "yes",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self._assert_local_data_deleted(self.user.id)
+        messages = [str(m) for m in response.context["messages"]]
+        self.assertFalse(any("Failed to delete" in m for m in messages))
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    def test_delete_user_by_email_command(self, mock_delete):
+        mock_delete.side_effect = self.not_found
+        out = StringIO()
+        call_command("delete_user_by_email", "gone@example.com", stdout=out)
+        self.assertIn("Deleted account", out.getvalue())
+        self._assert_local_data_deleted(self.user.id)
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    def test_other_firebase_errors_still_keep_local_data(self, mock_delete):
+        from accounts.services import delete_user_account
+
+        mock_delete.side_effect = Exception("network error")
+        with self.assertRaises(Exception):
+            delete_user_account(self.user)
+        self.assertTrue(User.objects.filter(id=self.user.id).exists())
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(self.user.id)).count(), 1)
+
+
+class FirebaseRealErrorKeepsLocalDataTests(TestCase):
+    """A2 counterpart: a genuine Firebase failure (not "user not found")
+    must keep the local user and entries on every deletion path."""
+
+    def setUp(self):
+        from firebase_admin import exceptions as firebase_exceptions
+
+        self.error = firebase_exceptions.InternalError("boom")
+        self.user = User.objects.create(
+            email="keep@example.com", firebase_uid="keep-uid", username="keep-uid"
+        )
+        JournalEntry.objects.create(
+            user_id=str(self.user.id), emoji="😊", thoughts="one", ai_response="ok"
+        )
+
+    def _assert_local_data_kept(self):
+        self.assertTrue(User.objects.filter(id=self.user.id).exists())
+        self.assertEqual(JournalEntry.objects.filter(user_id=str(self.user.id)).count(), 1)
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    def test_api_returns_502_with_friendly_message(self, mock_delete):
+        from therapist.tests import find_banned_tone_words
+
+        mock_delete.side_effect = self.error
+        client = APIClient()
+        with patch("core.firebase_auth.auth.verify_id_token") as mock_verify:
+            mock_verify.return_value = {"uid": "keep-uid", "email": "keep@example.com"}
+            response = client.delete("/api/v1/accounts/delete-account/", **_auth_header("keep-uid"))
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(
+            response.data["message"],
+            "We couldn't delete your account just now, and nothing was removed. "
+            "Please try again in a bit.",
+        )
+        self.assertEqual(find_banned_tone_words(response.data["message"]), [])
+        self._assert_local_data_kept()
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    def test_admin_action(self, mock_delete):
+        mock_delete.side_effect = self.error
+        admin = User.objects.create_superuser(email="root2@example.com", password="x")
+        self.client.force_login(admin)
+        self.client.post(
+            "/admin/accounts/user/",
+            {"action": "delete_account_action", "_selected_action": [str(self.user.pk)], "post": "yes"},
+            follow=True,
+        )
+        self._assert_local_data_kept()
+
+    @patch("accounts.services.firebase_auth_admin.delete_user")
+    def test_delete_user_by_email_command(self, mock_delete):
+        mock_delete.side_effect = self.error
+        with self.assertRaises(Exception):
+            call_command("delete_user_by_email", "keep@example.com", stdout=StringIO())
+        self._assert_local_data_kept()

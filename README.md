@@ -16,20 +16,21 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 
 ### Companion (`/api/companion/`)
 
-- **Luna AI responses** — warm, empathetic replies via Groq's fast cloud API, with automatic retry (2 attempts, short backoff) and a graceful fallback message if Groq is unreachable
+- **Luna AI responses** — warm, casual replies via Groq's fast cloud API, with automatic retry (2 attempts, short backoff). If Luna can't reply (Groq unreachable or the free-tier budget is nearly used up), the client gets an honest "Luna can't reply right now" line flagged `"fallback": true` — and **nothing is saved** to the journal — see [Fallback replies](#fallback-replies)
 - **Bilingual, gender-aware responses** — Luna replies in the user's `preferred_language` (English or Arabic), and Arabic replies are steered to address the user with the correct grammatical gender — see [Localization](#localization-arabic-support)
-- **Multi-turn conversations** — pass conversation history so Luna maintains context across messages
+- **Multi-turn conversations** — pass conversation history so Luna maintains context across messages; history is strictly validated (`user`/`assistant` roles and `role`/`content` keys only) and the oldest messages are trimmed automatically past 12,000 characters
 - **Session detection** — Luna appends `[SESSION_END]` when the user feels resolved; clients use this to close sessions
-- **Crisis detection** — journal text is checked for crisis language *before* any AI call, in both English and Arabic, at both the endpoint and the AI-service layer; a match returns a static, localized, gender-correct support response (with real hotline info) and `crisis_flagged: true`, and is redacted before ever appearing in a weekly letter prompt — see [Crisis Detection](#crisis-detection)
+- **Crisis detection** — journal text is checked for crisis language *before* any AI call, in both English and Arabic, at both the endpoint and the AI-service layer; a match returns a fixed, localized message in a caring friend's voice (pointing to findahelpline.com and local emergency services) and `crisis_flagged: true`, and is redacted before ever appearing in a weekly letter prompt — see [Crisis Detection](#crisis-detection)
 - **Mood journal** — every entry (emoji + thoughts + AI reply) is saved per user
 - **Multi-type journal entries** — the journal isn't just mood chats: it also logs completed activities — breathing exercises, sudoku, drawing, and weekly letter reads — via `entry_type` and a per-type `payload`, all through the same history/streak machinery
-- **Weekly letter** — Luna writes a personal weekly reflection based on recent entries (in the user's preferred language), including a real consecutive-day streak (not just an entry count)
-- **Cross-session memory** — when a chat session ends (`[SESSION_END]`), Luna summarizes it on a background thread and stores a rolling `memory_summary` on the user's profile (`accounts.User.memory_summary`/`memory_updated_at`); that summary is fed back into the system prompt on future chats so Luna can reference earlier context without the client ever sending or seeing the raw transcript — see [Cross-Session Memory](#cross-session-memory)
+- **Weekly letter** — Luna writes a short, warm note from a friend about the user's week (in their preferred language) — no mood analysis, nothing heavy brought up — plus a real consecutive-day streak (not just an entry count)
+- **Cross-session memory** — when a chat session ends (`[SESSION_END]`), Luna updates a short note (people, plans, things they enjoy or are looking forward to) on a background thread, building on the previous note rather than replacing it, and stores it as a rolling `memory_summary` (≤ 600 characters) on the user's profile (`accounts.User.memory_summary`/`memory_updated_at`); that summary is fed back into the system prompt on future chats so Luna can reference earlier context without the client ever sending or seeing the raw transcript — see [Cross-Session Memory](#cross-session-memory)
 - **Context-aware tone** — `generate/` accepts an optional `context_flag` (currently `post_exercise_breathing`) that softens Luna's system prompt right after the user finishes a breathing exercise
 - **Per-user data isolation** — every entry is scoped to the authenticated user (`request.user`); no client-supplied identifier is ever accepted
-- **Entry deletion** — delete a single journal entry by id, or every entry at once, both hard-deleted and scoped strictly to the authenticated user; the bulk delete requires an explicit `{"confirm": true}` body and is rate-limited to 5/minute — see [Deleting Journal Entries](#deleting-journal-entries)
+- **Entry deletion** — delete a single journal entry by id, or every entry at once, both hard-deleted and scoped strictly to the authenticated user; the bulk delete requires an explicit `{"confirm": true}` body, also clears Luna's memory of the user and their cached weekly letter, and is rate-limited to 5/minute per user — see [Deleting Journal Entries](#deleting-journal-entries)
 - **Content reporting** — flag an offensive, inaccurate, or otherwise problematic Luna response without leaving the app, satisfying Google Play's AI-Generated Content policy requirement for chatbot apps; reports are snapshotted (independent of the original journal entry) and triaged by staff in Django admin — see [Reporting Content](#reporting-content)
-- **Groq free-tier budget guard** — `therapist/groq_budget_guard.py` tracks requests/min, requests/day, and tokens/min against Groq's free-tier ceilings (with an 80–90% safety margin) using Django's cache framework; when the shared budget is nearly exhausted, `generate/` returns a rotating "distracted friend" fallback line (bilingual, never mentions infrastructure) instead of calling Groq — a different, less common path than the network-failure fallback in the bullet above
+- **Groq free-tier budget guard** — `therapist/groq_budget_guard.py` tracks requests/min, requests/day, and tokens/min against Groq's free-tier ceilings (with an 80–90% safety margin) using Django's cache framework; when the shared budget is nearly exhausted, `generate/` skips Groq and returns one of a few rotating, honest "Luna can't reply right now" lines (bilingual, never a human excuse, never a system error, never saved) — see [Fallback replies](#fallback-replies)
+- **Luna's voice** — every user-facing string and prompt follows one tone rule, enforced by a test — see [Luna's Voice](#lunas-voice)
 
 ### Accounts (`/api/accounts/`)
 
@@ -37,7 +38,7 @@ Luna speaks **English and Arabic** (Modern Standard Arabic), selected per-user v
 - **Custom user model** — `accounts.User` (email as `USERNAME_FIELD`), linked to Firebase via a nullable, unique `firebase_uid`, auto-created on first sight of a new Firebase identity
 - **Profile management** — view/update profile (`full_name`, `phone_number`, `bio`, `date_of_birth`, `gender`, `preferred_language`); identity-bearing fields (`firebase_uid`, `email`, `username`, staff flags) are never client-writable
 - **Language preference** — `preferred_language` (`en`/`ar`, `TextChoices`, defaults to `en`) drives which language Luna responds in, everywhere — chat, weekly letter, crisis response, and fallback messages
-- **Account deletion** — deletes the Firebase identity, all of the user's `JournalEntry` rows, then the local Django record; fails closed (nothing deleted) if the Firebase-side call errors. Users who can't open the app can request the same deletion by email — see [Account Deletion](#account-deletion)
+- **Account deletion** — deletes the Firebase identity, all of the user's `JournalEntry` rows, then the local Django record; fails closed (nothing deleted) if the Firebase-side call errors, except when the Firebase user is already gone (`UserNotFoundError`), which counts as success so local data is still removed. Users who can't open the app can request the same deletion by email — see [Account Deletion](#account-deletion)
 - **Consistent response envelope** — every endpoint returns `{"success": bool, "message": str, "data": {...}}` or `{"success": false, "message": str, "errors": {...}}`
 
 ### General
@@ -205,7 +206,11 @@ Submit a mood entry. Luna responds with an empathetic message that is saved to t
 }
 ```
 
-- **`history`**: optional — list of prior `{"role", "content"}` messages for multi-turn context. Only the last 10 items are used.
+- **`history`**: optional — list of prior `{"role", "content"}` messages for multi-turn context. Only the last 10 items are used. Validation:
+  - `role` must be `user` or `assistant` (a client-supplied `system` turn would override Luna's prompt) and each item may contain **only** `role` and `content` — anything else is a `400`
+  - at most 20 items — otherwise `400`
+  - any single `content` longer than **5,000** characters is cut to its first 5,000 characters — no error
+  - if the total `content` length exceeds **12,000** characters, the **oldest** messages are dropped until it fits — no error, the request still returns `200`
 - **`context_flag`**: optional — currently only `post_exercise_breathing` is accepted; it tells Luna's system prompt the user just finished a breathing exercise, so her reply is softer/calmer than a cold-open chat message.
 - There is no `user_id` field — the entry is always attributed to `request.user`.
 - There is no `preferred_language`/`gender` field either — Luna's reply language and grammatical gender come from the authenticated user's profile (`request.user.preferred_language`, `request.user.gender`), never from the request body. See [Localization](#localization-arabic-support).
@@ -233,7 +238,27 @@ When the user feels better or resolved, Luna's `ai_response` will end with `[SES
 { "detail": "Invalid or expired token." }
 ```
 
-If the Groq API is unavailable, the entry is still saved with a localized fallback message — English: `"Luna is taking a little break right now. Please try again in a moment 🌿"`, Arabic: `"لونا بحاجة إلى دقيقة الآن. حاول مرة أخرى بعد قليل 🌿"`.
+#### Fallback replies
+
+If Luna can't reply — Groq is unreachable/errors, or the [budget guard](#features) has no room left (`generate_ai_response()` raises `LunaUnavailable`) — **nothing is written to the journal** and the memory update isn't triggered. The response is still `200` with the same fields as a normal entry, so existing clients keep parsing it, plus `"fallback": true`:
+
+```json
+{
+  "id": 0,
+  "user_id": "1",
+  "entry_type": "mood_chat",
+  "emoji": "😔",
+  "thoughts": "Feeling overwhelmed with everything lately",
+  "ai_response": "Luna can't reply right now, give me a minute and try again? 🌿",
+  "payload": {},
+  "created_at": "2026-10-01T10:30:00Z",
+  "crisis_flagged": false,
+  "fallback": true
+}
+```
+
+- `id` is always `0` for a fallback (there's no saved row) — clients should not try to delete or re-fetch it, and should let the user resend their message.
+- The text is an honest, warm line in the user's `preferred_language` — never a human excuse ("dropped my phone") and never a system error. Normal replies don't include the `fallback` key at all.
 
 **Rate limiting**: `generate/` carries two independent throttle scopes on top of the global `60/minute` default — `ai_generate` (`ScopedRateThrottle`, `20/minute`) and `luna_chat` (`LunaChatRateThrottle`, a per-user `UserRateThrottle`, `20/min`). Either one tripping returns `429`. This protects the shared Groq free-tier budget from a single user's burst independently of overall endpoint traffic; see also the budget-guard fallback described above under [Features](#features).
 
@@ -282,7 +307,7 @@ curl -X DELETE https://web-production-f8628.up.railway.app/api/v1/companion/entr
 - **404** — no matching entry for this user (wrong id, or someone else's entry)
 - **401** — missing/invalid/expired token
 
-**DELETE `/api/companion/entries/delete-all/`** — deletes every entry owned by the authenticated user. Requires an explicit confirmation body; without it, nothing is deleted:
+**DELETE `/api/companion/entries/delete-all/`** — deletes every entry owned by the authenticated user, and also wipes what Luna remembers about them: `memory_summary` is cleared, `memory_updated_at` is reset to `null`, and their cached weekly letter is removed (the cache key is rebuilt from the current entries *before* they're deleted). Other users' data is never touched. Requires an explicit confirmation body; without it, nothing is deleted:
 
 ```bash
 curl -X DELETE https://web-production-f8628.up.railway.app/api/v1/companion/entries/delete-all/ \
@@ -298,7 +323,7 @@ curl -X DELETE https://web-production-f8628.up.railway.app/api/v1/companion/entr
 - **200** — `{"deleted_count": N}`, even if `N` is `0`
 - **400** — `confirm` missing or `false` — nothing is deleted
 - **401** — missing/invalid/expired token
-- **429** — throttled past `delete_all`'s `5/minute` scope (`DeleteAllJournalEntriesRateThrottle` in `therapist/throttles.py`, tighter than the global `60/minute` default since this is destructive)
+- **429** — throttled past `delete_all`'s `5/minute` per-user limit (`DeleteAllJournalEntriesRateThrottle` in `therapist/throttles.py`, tighter than the global `60/minute` default since this is destructive). It's the view's only throttle class — an earlier version also added `ScopedRateThrottle` with the same scope, which shared the cache key and counted every request twice (effectively ~2/minute)
 
 Both views are plain `APIView` subclasses (not `ModelViewSet`/generics), matching the rest of `therapist/views.py`.
 
@@ -342,12 +367,15 @@ Reports are triaged in Django admin (`ContentReport`) — staff can filter by `r
 
 `thoughts` is checked against **two independent** crisis-language patterns — English (`therapist/crisis.py`) and Arabic (`therapist/crisis_ar.py`) — **before** `generate_ai_response` is ever called, so Groq never sees crisis text. Both detectors run on *every* message regardless of the user's `preferred_language` (someone set to `en` might still type in Arabic, and vice versa); either one matching is enough to trigger the crisis path. This runs at two layers for defense in depth: once in `GenerateResponseAPIView` and again inside `ai_model.generate_ai_response()` itself, in case anything else ever calls it directly.
 
-`therapist/crisis.py` is treated as **frozen** — it is never edited; `crisis_ar.py` is a separate sibling module with its own flat keyword list (200+ MSA phrases covering direct statements, self-harm, indirect/euphemistic expressions, hopelessness, intent, plans, imminence, farewells, and attempts-in-progress), matched the same simple "any substring match = True" way, with no weighting, negation-detection, or third-person/fiction-detection (deliberately deferred — see the module docstring).
+Both modules are plain keyword matching — no NLP, no weighting — and both lean toward flagging: a false alarm is better than a missed crisis message.
+
+- **English (`crisis.py`)** catches direct phrases plus common slang and inflections (`suicidal`, `killing myself`, `wanna die`, `unalive`, `I don't want to be here`, and `kms` as a whole word). Curly apostrophes and extra spaces are normalized first. Only two narrow exceptions exist — `don't/dont/do not want to die` and `Suicide Squad` — and they're blanked out rather than short-circuiting, so a real crisis phrase elsewhere in the same message is still caught.
+- **Arabic (`crisis_ar.py`)** has its own flat keyword list (direct statements, self-harm, indirect expressions, hopelessness, intent, plans, imminence, farewells, attempts-in-progress, and dialect forms like `بدي انتحر`/`ابي اموت`/`اقتل حالي`). Both the text and the keywords are normalized before matching: diacritics and tatweel stripped, `أ/إ/آ/ٱ → ا`, `ى → ي`, `ة → ه`, `ؤ → و`, `ئ → ي` — so hamza-less spellings like `اريد انتحر` match. Generic phrases that flagged everyday messages (`بعد قليل`, `أنا جاد`, `لدي خطة`, `اعتنوا بأنفسكم`, `لا يوجد حل`, `هذا هو الوقت`) were removed. There is still no negation or third-person detection (see the module docstring).
 
 A match:
 
 - Skips the Groq call entirely
-- Saves the entry with a static support response — in the user's `preferred_language`, and (for Arabic) grammatically conjugated to the user's `gender` — no AI-generated text
+- Saves the entry with a fixed message in Luna's caring-friend voice — in the user's `preferred_language` (Arabic uses one gender-neutral text for everyone) — pointing to findahelpline.com and the local emergency number; no AI-generated text
 - Returns `crisis_flagged: true` in the response
 - Logs which language(s) matched (`logger.warning("Crisis language detected (languages=%s) ...")`) for observability
 
@@ -357,7 +385,7 @@ A match:
   "user_id": "1",
   "emoji": "😔",
   "thoughts": "I want to kill myself",
-  "ai_response": "It sounds like you're carrying something really heavy right now...\n\n• US: call or text 988 (Suicide & Crisis Lifeline)\n• Outside the US: https://findahelpline.com\n\n...",
+  "ai_response": "Hey, I'm really glad you told me. This is a lot to hold on your own...\n\n• US: call or text 988 (Suicide & Crisis Lifeline)\n• Anywhere else: https://findahelpline.com\n\n...",
   "created_at": "2026-06-22T10:30:00Z",
   "crisis_flagged": true
 }
@@ -365,7 +393,7 @@ A match:
 
 The same check also runs when building `weekly-letter/`'s prompt: any past entry that matches is redacted to `"(a difficult moment)"` before its text is sent to Groq, so a flagged entry from earlier in the week can't leak into a third-party API call via the weekly summary.
 
-This is keyword-based pattern matching, not a clinical or diagnostic tool, and it **will** produce false positives on non-literal phrasing (e.g. "I can't go on watching this show"). That tradeoff is intentional — over-triggering toward a support message is safer than under-triggering and saying nothing.
+This is keyword-based pattern matching, not a clinical or diagnostic tool, and it **will** produce false positives on non-literal phrasing (e.g. "I can't go on watching this show", or `kms` meaning kilometres). That tradeoff is intentional — over-triggering toward a support message is safer than under-triggering and saying nothing.
 
 ---
 
@@ -376,8 +404,8 @@ When a chat exchange's `ai_response` ends with `[SESSION_END]` (Luna judged the 
 That thread:
 
 1. Rebuilds the full session transcript (`history` + the current turn), redacting any crisis-flagged message to `"(a difficult moment)"` the same way the weekly letter does
-2. Sends the transcript to Groq with `LunaPromptProvider.get_memory_summary_prompt()` (localized/gendered like everything else Luna-voiced) to produce a short summary
-3. Overwrites `accounts.User.memory_summary` and stamps `memory_updated_at` — one rolling summary per user, not a growing log
+2. Reads the user's current `memory_summary` fresh from the database and sends it, together with the transcript, to Groq with `LunaPromptProvider.get_memory_summary_prompt()` (localized/gendered like everything else Luna-voiced). The prompt asks for a friend's note — people in their life, plans and things coming up, what they enjoy, what they're excited or worried about — that **updates** the earlier note (keep what still matters, drop what doesn't) in 2–4 sentences
+3. Stores the result in `accounts.User.memory_summary` (hard-capped at 600 characters, cut at a sentence end — `MEMORY_SUMMARY_MAX_CHARS`) and stamps `memory_updated_at` — one rolling note per user, not a growing log
 
 That stored `memory_summary` is then passed into `generate_ai_response()` as context on the user's *next* chat, so Luna's system prompt can reference earlier context ("last time you mentioned...") without the client ever needing to resend history across sessions.
 
@@ -385,7 +413,7 @@ Notes:
 
 - This is best-effort: if the Groq call fails, if the budget guard rejects it, or if Groq returns an empty summary, `memory_summary` is simply left unchanged for that turn — no error surfaces to the user.
 - The transcript passed to Groq is never persisted anywhere beyond the summarization call itself — only the resulting summary text is stored.
-- `memory_summary` is deleted along with the rest of the user's data on account deletion (see [Account Deletion](#account-deletion)).
+- `memory_summary` is deleted along with the rest of the user's data on account deletion (see [Account Deletion](#account-deletion)), and is also cleared (with `memory_updated_at` reset) by `DELETE entries/delete-all/`.
 - Sentry's payload scrubber (`core/settings.py` `_SENTRY_REDACT_FIELDS`) explicitly redacts `memory_summary` alongside `thoughts`/`content`/`ai_reply`/`transcript`, so it can never leak into an error report.
 
 ---
@@ -413,7 +441,7 @@ Returns all mood entries for the authenticated user, newest first.
 
 ### GET `/api/companion/weekly-letter/`
 
-Luna writes a personal letter summarising the authenticated user's emotional week (last 7 days).
+Luna writes a short, warm note from a friend about the authenticated user's week (last 7 days): a couple of specific things they shared — people, plans, small wins, things they enjoyed — and some encouragement for the week ahead. It's deliberately not a "week in review": no mood counts or analysis, and if they shared something heavy it isn't brought up.
 
 Requires at least **2 entries** in the past 7 days; returns `null` with a reason otherwise.
 
@@ -425,7 +453,7 @@ The letter is written in the authenticated user's `preferred_language`. Its Groq
 
 ```json
 {
-  "letter": "Dear friend,\n\nThis week you carried both weight and warmth...\n\n— Luna 🌿",
+  "letter": "Hey friend,\n\nSounds like that dinner with Sara was just what you needed...\n\n— Luna 🌿",
   "stats": {
     "entry_count": 5,
     "dominant_emoji": "😔",
@@ -493,7 +521,7 @@ or, on failure:
 
 ### Account Deletion
 
-**DELETE `/api/accounts/delete-account/`** (self-service, requires auth) — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then all matching `therapist.JournalEntry` rows, then the local Django row (`user.delete()`). If the Firebase-side call fails, the request returns `502` and nothing else is deleted (no orphaned Firebase identity, retryable). That final `user.delete()` also cascades to the user's `therapist.ContentReport` rows via a real `ForeignKey(on_delete=CASCADE)` — no separate query needed, unlike `JournalEntry` above — so submitted content reports don't outlive the account that filed them.
+**DELETE `/api/accounts/delete-account/`** (self-service, requires auth) — Deletes the Firebase identity (`firebase_admin.auth.delete_user`) first, then all matching `therapist.JournalEntry` rows, then the local Django row (`user.delete()`). If the Firebase-side call fails, the request returns `502` with `"We couldn't delete your account just now, and nothing was removed. Please try again in a bit."` and nothing else is deleted (no orphaned Firebase identity, retryable). The one exception is Firebase's `UserNotFoundError`: the identity is already gone, which is the outcome we want, so it's logged as a warning and the local data is deleted anyway. This applies to all three deletion paths (API, admin action, `delete_user_by_email`), since they share `delete_user_account()`. That final `user.delete()` also cascades to the user's `therapist.ContentReport` rows via a real `ForeignKey(on_delete=CASCADE)` — no separate query needed, unlike `JournalEntry` above — so submitted content reports don't outlive the account that filed them.
 
 **Web-based deletion request** (no app access required) — The privacy policy (`/privacy/`) promises a way to request deletion for users who can't open the app. That promise is backed by `accounts.services.delete_user_account()` — the exact same function the API endpoint calls — exposed as a management command:
 
@@ -522,17 +550,26 @@ All of this is centralized in **`therapist/luna_prompts.py`** — `LunaPromptPro
 There are two different mechanisms, used for two different kinds of content:
 
 - **Model-steering** (chat system prompt, weekly-letter prompt) — these are instructions *to* the LLM, not literal text shown to the user. `LunaPromptProvider` prepends one of `GENDER_INSTRUCTIONS_AR` (a one-line "address the user in the masculine/feminine/neutral form" instruction) ahead of the Arabic prompt, and lets the model conjugate its own generated reply.
-- **Literal template substitution** (crisis response) — this is fixed, final text sent verbatim to the user. `apply_gender_variant(template, gender)` does a simple regex substitution of `{male_form/female_form}` markers embedded in the Arabic template — no templating engine, easy to audit at a glance.
+- **Literal template substitution** — fixed, final text sent verbatim to the user. `apply_gender_variant(template, gender)` does a simple regex substitution of `{male_form/female_form}` markers — no templating engine, easy to audit at a glance. The Arabic crisis message currently uses one gender-neutral text with no markers (the app has no reliable gender signal), so this is a no-op for it today.
 
 | Content | English source | Arabic source | Gender handling |
 | --- | --- | --- | --- |
 | Chat system prompt | `LUNA_SYSTEM_PROMPT_EN` | `LUNA_SYSTEM_PROMPT_AR` | Model-steering prepend |
 | Weekly letter prompt | `WEEKLY_LETTER_PROMPT_EN` | `WEEKLY_LETTER_PROMPT_AR` | Model-steering prepend |
-| Groq-error fallback | `GROQ_ERROR_FALLBACK_EN` | `GROQ_ERROR_FALLBACK_AR` | None (no gendered verb in either language's copy) |
-| Budget-guard "distracted friend" lines | `groq_budget_guard.BUDGET_EXCEEDED_MESSAGES` | `groq_budget_guard.BUDGET_EXCEEDED_MESSAGES_AR` | None (deliberately gender-neutral phrasing) |
-| Crisis response | `therapist.crisis.CRISIS_RESPONSE` (frozen, untouched) | `CRISIS_RESPONSE_AR` | `apply_gender_variant()` |
+| Memory-summary prompt | `MEMORY_SUMMARY_PROMPT_EN` (+ `PREVIOUS_MEMORY_EN`) | `MEMORY_SUMMARY_PROMPT_AR` (+ `PREVIOUS_MEMORY_AR`) | Model-steering prepend |
+| Groq-error fallback | `GROQ_ERROR_FALLBACK_EN` | `GROQ_ERROR_FALLBACK_AR` | None (gender-neutral phrasing) |
+| Budget-guard "Luna can't reply right now" lines | `groq_budget_guard.BUDGET_EXCEEDED_MESSAGES` | `groq_budget_guard.BUDGET_EXCEEDED_MESSAGES_AR` | None (gender-neutral phrasing) |
+| Crisis response | `therapist.crisis.CRISIS_RESPONSE` | `CRISIS_RESPONSE_AR` | None (one gender-neutral text) |
 
 An unrecognized `preferred_language` value never raises — it silently falls back to English and logs a `logger.warning` + a Sentry breadcrumb (a real value reaching there and not matching `en`/`ar` signals a data-integrity issue upstream, not a normal case).
+
+### Luna's Voice
+
+Everything a user can read — chat replies, the memory note, the weekly letter, fallback lines, crisis messages, and error texts — follows one tone rule, in English and Arabic: Luna is a friendly companion, like a close mate. Short, warm, casual sentences; never clinical, therapeutic, or medical. Crisis messages still include real help (findahelpline.com and the local emergency number), written in the same caring friend's voice.
+
+- **Honest about being an AI**: Luna doesn't bring it up herself, but if someone sincerely asks whether they're talking to a person or an AI, she answers honestly and warmly. The chat prompts' "ENDING THE SESSION" heading is now "ENDING THE CHAT"; the `[SESSION_END]` tag itself is unchanged.
+- **Fallbacks are honest**: "Luna can't reply right now, give me a minute and try again? 🌿" — never a human excuse ("got distracted", "dropped my phone", "irl") and never a system error.
+- **Enforced by a test**: `ToneRuleTests` in `therapist/tests.py` scans every user-facing string and Luna-voiced prompt and fails on banned words — EN: therapy/therapist/therapeutic, treatment, symptom, disorder, diagnosis, mental health, coping, patient, session, support services, clinical, medical, counsel(ing); AR: علاج, معالج, أعراض, اضطراب, تشخيص, الصحة النفسية, التأقلم, مريض, جلسة, خدمات الدعم, طبي. The chat prompts' `NEVER:` / `ممنوع نهائياً:` blocks are stripped before scanning (they must keep naming what's forbidden), as are a few opening negations ("not counseling a client") and the `[SESSION_END]` tag.
 
 ### Preventing unshipped placeholder text from reaching production
 
@@ -561,13 +598,13 @@ lueur-backend/
 │   ├── models.py          # JournalEntry (entry_type + payload for non-chat activities), ContentReport (moderation reports)
 │   ├── views.py           # GenerateResponseAPIView, AllHistoryAPIView, WeeklyLetterAPIView, ActivityEntryAPIView, ReportContentView, calculate_streak()
 │   ├── serializers.py     # JournalEntrySerializer, JournalEntryCreateSerializer, ActivityEntryCreateSerializer, ContentReportSerializer (no user_id field)
-│   ├── ai_model.py        # Groq integration — generate_ai_response(), generate_weekly_letter(), shared _call_groq() retry helper
-│   ├── services.py        # build_weekly_letter_context(), warm_weekly_letter_cache() — shared by WeeklyLetterAPIView and generate_weekly_letters
+│   ├── ai_model.py        # Groq integration — generate_ai_response() (raises LunaUnavailable on a budget miss), generate_weekly_letter(), cumulative memory update, shared _call_groq() retry helper
+│   ├── services.py        # build_weekly_letter_context(), warm_weekly_letter_cache(), clear_weekly_letter_cache() — shared by the weekly-letter/delete-all views and generate_weekly_letters
 │   ├── luna_prompts.py    # LunaPromptProvider — language/gender-aware prompts, apply_gender_variant(), placeholder safety checks
-│   ├── crisis.py          # contains_crisis_language(), CRISIS_RESPONSE — English crisis detection (frozen, never edited)
-│   ├── crisis_ar.py       # contains_crisis_language_ar() — Arabic crisis detection (sibling module, runs alongside crisis.py)
-│   ├── groq_budget_guard.py  # Free-tier rate/token budget guard; get_fallback_message() now bilingual
-│   ├── throttles.py       # LunaChatRateThrottle, DeleteAllJournalEntriesRateThrottle (per-user, in addition to DRF's global/scoped throttles)
+│   ├── crisis.py          # contains_crisis_language(), CRISIS_RESPONSE — English crisis detection (slang + narrow safe phrases)
+│   ├── crisis_ar.py       # contains_crisis_language_ar(), normalize_ar() — Arabic crisis detection (sibling module, runs alongside crisis.py)
+│   ├── groq_budget_guard.py  # Free-tier rate/token budget guard; get_fallback_message() returns an honest bilingual "can't reply right now" line
+│   ├── throttles.py       # LunaChatRateThrottle, DeleteAllJournalEntriesRateThrottle (per-user; the latter is delete-all's only throttle class)
 │   ├── apps.py            # TherapistConfig.ready() — production boot check for placeholder Arabic content
 │   ├── urls.py            # App URL patterns
 │   ├── management/commands/
@@ -670,9 +707,9 @@ No non-staff account can reach `/admin/` — access is gated by Django's standar
 ## Testing
 
 ```bash
-python manage.py test           # full suite (193+ tests as of Sep 2026 — check runner output for current count)
-python manage.py test therapist # generate/history/weekly-letter/activity/report, entry deletion (single + bulk), bilingual crisis detection, localization/gender, streak calc
-python manage.py test accounts  # profile, preferred_language/gender, delete-account, verify, delete_user_by_email command
+python manage.py test           # full suite (234 tests as of Oct 2026 — check runner output for current count)
+python manage.py test therapist # generate/history/weekly-letter/activity/report, history validation + trimming, unsaved fallbacks, entry deletion (single + bulk, incl. memory/letter-cache reset and the 5/min throttle), bilingual crisis detection, cumulative memory, tone rule, localization, streak calc
+python manage.py test accounts  # profile, preferred_language/gender, delete-account (incl. Firebase UserNotFoundError vs real errors on every path), verify, delete_user_by_email command
 ```
 
 Tests never hit real external services — mock `generate_ai_response()` / `therapist.ai_model.requests.post` for Groq calls, `core.firebase_auth.auth.verify_id_token` for token verification, and `accounts.services.firebase_auth_admin.delete_user` for Firebase account deletion. The `delete_user_by_email` and account-deletion cascade tests hit the real (test) database directly and assert on actual row counts, not just mock call assertions — this matters because a deletion path is exactly the kind of thing you don't want to trust to "the mock was called":
@@ -750,6 +787,7 @@ const res = await fetch('http://localhost:8000/api/v1/companion/generate/', {
 });
 const data = await res.json();
 // If data.ai_response includes '[SESSION_END]', close the session
+// If data.fallback is true, nothing was saved (id is 0) — let the user resend
 
 // Get history
 const history = await fetch('http://localhost:8000/api/v1/companion/history/', {
@@ -774,13 +812,15 @@ const meRes = await fetch('http://localhost:8000/api/v1/accounts/me/', {
 | Static files 404 | Run `python manage.py collectstatic` |
 | Database locked | Switch to PostgreSQL for concurrent writes |
 | Slow responses | Normal — Groq API takes 1–2 seconds |
-| 502 on `DELETE /api/accounts/delete-account/` | Firebase-side deletion failed — the local account is intentionally **not** deleted; retry once the Firebase-side issue is resolved |
+| 502 on `DELETE /api/accounts/delete-account/` | Firebase-side deletion failed — the local account is intentionally **not** deleted; retry once the Firebase-side issue is resolved (a Firebase user that's already gone is *not* an error — local data is deleted) |
+| 400 on `generate/` mentioning `history` | A history item has a role other than `user`/`assistant`, a key other than `role`/`content`, isn't an object, or there are more than 20 items (an item over 5,000 characters is truncated and a total over 12,000 is trimmed — neither is rejected) |
+| `"fallback": true` with `id: 0` from `generate/` | Groq errored or the budget guard had no room — nothing was saved; let the user resend |
 
 ---
 
 ## Disclaimer
 
-This application provides AI-generated supportive messages and is **not a replacement for professional support**.
+Luna is an AI companion, not a person, and is **not a replacement for professional help**.
 
 If you are in crisis, please reach out:
 
@@ -792,4 +832,4 @@ If you are in crisis, please reach out:
 
 Built with Django REST Framework · Powered by Groq API · Authenticated via Firebase Auth · English & Arabic supported
 
-Last Updated: September 8, 2026
+Last Updated: October 1, 2026
