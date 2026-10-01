@@ -209,6 +209,7 @@ The entry is automatically saved to your journal history.
                 ai_reply,
                 request.user.preferred_language,
                 request.user.gender,
+                entry.id,
             )
 
         data = JournalEntrySerializer(entry).data

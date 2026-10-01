@@ -6,7 +6,7 @@ import time
 
 import requests
 from django.core.cache import cache
-from django.db import connections
+from django.db import connections, transaction
 from django.utils import timezone
 
 from accounts.models import User
@@ -17,6 +17,7 @@ from .groq_budget_guard import (
     estimate_tokens,
 )
 from .luna_prompts import LunaPromptProvider
+from .models import JournalEntry
 
 logger = logging.getLogger(__name__)
 
@@ -173,36 +174,74 @@ def _truncate_summary(summary):
     return cut.rsplit(" ", 1)[0]
 
 
-def _update_user_memory(user_id, history, emoji, thoughts, ai_reply, preferred_language, gender):
+def _session_entry_exists(user_id, entry_id):
+    return JournalEntry.objects.filter(pk=entry_id, user_id=str(user_id)).exists()
+
+
+def _update_user_memory(
+    user_id, history, emoji, thoughts, ai_reply, preferred_language, gender, entry_id
+):
     try:
+        # Delete-all may land before or during this (slow) thread. entry_id is
+        # the session's last entry: if it's gone, the session was deleted and
+        # must not be folded back into memory.
+        if not _session_entry_exists(user_id, entry_id):
+            return
         transcript = _build_session_transcript(history, emoji, thoughts, ai_reply)
         # Read fresh from the DB (not the request's user object) so the
-        # newest stored note is the one that gets built on.
-        previous_summary = (
-            User.objects.filter(id=user_id).values_list("memory_summary", flat=True).first()
+        # newest stored note is the one that gets built on. memory_updated_at
+        # is read with it so the write below can tell if memory changed
+        # (e.g. was reset by delete-all) while Groq was running.
+        row = (
+            User.objects.filter(id=user_id)
+            .values_list("memory_summary", "memory_updated_at")
+            .first()
         )
+        if row is None:
+            return
+        previous_summary, previous_updated_at = row
         summary = _generate_session_memory_summary(
             transcript, preferred_language, gender, previous_summary
         )
         if not summary or not summary.strip():
             return
-        User.objects.filter(id=user_id).update(
-            memory_summary=_truncate_summary(summary.strip()),
-            memory_updated_at=timezone.now(),
-        )
+        # Groq stays outside the lock; only the check-and-write is locked, so
+        # a delete-all in progress commits first and its reset is seen here.
+        with transaction.atomic():
+            user = User.objects.select_for_update().filter(id=user_id).first()
+            if user is None:
+                logger.info("Skipping memory update: user_id=%s no longer exists", user_id)
+                return
+            if user.memory_updated_at != previous_updated_at:
+                logger.info(
+                    "Skipping memory update: memory changed meanwhile for user_id=%s", user_id
+                )
+                return
+            if not _session_entry_exists(user_id, entry_id):
+                logger.info(
+                    "Skipping memory update: session entries deleted for user_id=%s", user_id
+                )
+                return
+            User.objects.filter(id=user_id).update(
+                memory_summary=_truncate_summary(summary.strip()),
+                memory_updated_at=timezone.now(),
+            )
     except Exception:
         logger.exception("Failed to update memory summary for user_id=%s", user_id)
     finally:
         connections.close_all()
 
 
-def trigger_memory_update(user_id, history, emoji, thoughts, ai_reply, preferred_language, gender):
+def trigger_memory_update(
+    user_id, history, emoji, thoughts, ai_reply, preferred_language, gender, entry_id
+):
     """Fire-and-forget: summarizes a just-ended session, folding it into the
     user's previously stored memory, on a background thread, so it never delays the
-    HTTP response already sent back to the user."""
+    HTTP response already sent back to the user. entry_id is the session's last
+    JournalEntry; the write is skipped if it was deleted in the meantime."""
     threading.Thread(
         target=_update_user_memory,
-        args=(user_id, history, emoji, thoughts, ai_reply, preferred_language, gender),
+        args=(user_id, history, emoji, thoughts, ai_reply, preferred_language, gender, entry_id),
         daemon=True,
     ).start()
 

@@ -1,9 +1,10 @@
+import threading
 import time
 from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -1357,6 +1358,9 @@ class CumulativeMemorySummaryTests(TestCase):
             email="mem@example.com", firebase_uid="mem-uid", username="mem-uid",
             memory_summary="Started a new job and feels nervous.",
         )
+        self.entry = JournalEntry.objects.create(
+            user_id=str(self.user.id), emoji="😊", thoughts="fine", ai_response="ok"
+        )
 
     def test_prompt_includes_previous_summary_when_present(self):
         prompt = LunaPromptProvider.get_memory_summary_prompt("en", None, "OLD NOTE")
@@ -1382,7 +1386,7 @@ class CumulativeMemorySummaryTests(TestCase):
         _update_user_memory(
             self.user.id,
             [{"role": "user", "content": "I want to kill myself"}],
-            "😔", "I feel suicidal", "I'm here. [SESSION_END]", "en", None,
+            "😔", "I feel suicidal", "I'm here. [SESSION_END]", "en", None, self.entry.id,
         )
 
         payload = mock_call.call_args.args[0]
@@ -1402,7 +1406,7 @@ class CumulativeMemorySummaryTests(TestCase):
         from .ai_model import MEMORY_SUMMARY_MAX_CHARS, _update_user_memory
 
         mock_call.return_value = ("This is one sentence. " * 60).strip()
-        _update_user_memory(self.user.id, [], "😊", "fine", "ok", "en", None)
+        _update_user_memory(self.user.id, [], "😊", "fine", "ok", "en", None, self.entry.id)
 
         self.user.refresh_from_db()
         self.assertLessEqual(len(self.user.memory_summary), MEMORY_SUMMARY_MAX_CHARS)
@@ -1413,7 +1417,7 @@ class CumulativeMemorySummaryTests(TestCase):
     def test_budget_miss_keeps_previous_summary(self, _mock_budget, _mock_close):
         from .ai_model import _update_user_memory
 
-        _update_user_memory(self.user.id, [], "😊", "fine", "ok", "en", None)
+        _update_user_memory(self.user.id, [], "😊", "fine", "ok", "en", None, self.entry.id)
         self.user.refresh_from_db()
         self.assertEqual(self.user.memory_summary, "Started a new job and feels nervous.")
 
@@ -1806,3 +1810,124 @@ class MemoryAcrossSessionsTests(TestCase):
         self.assertLessEqual(len(user.memory_summary), MEMORY_SUMMARY_MAX_CHARS)
         self.assertTrue(user.memory_summary.endswith("."))
         self.assertIsNotNone(user.memory_updated_at)
+
+
+class MemoryDeleteAllRaceTests(TransactionTestCase):
+    """The memory thread must not write an old note back after delete-all.
+    Runs the real thread (TransactionTestCase so it sees committed rows)
+    with a Groq mock that blocks until the test releases it."""
+
+    OLD = "Sister Mia, exam on Friday."
+    NEW = "Sister Mia, exam on Friday. Started guitar lessons."
+
+    def setUp(self):
+        from accounts.models import User
+
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.user = User.objects.create(
+            email="race@example.com", firebase_uid="race-uid", username="race-uid",
+            memory_summary=self.OLD, memory_updated_at=timezone.now() - timedelta(days=1),
+        )
+        JournalEntry.objects.create(
+            user_id=str(self.user.id), emoji="😊", thoughts="old chat", ai_response="hi"
+        )
+        self.entry = JournalEntry.objects.create(
+            user_id=str(self.user.id), emoji="😊", thoughts="last chat",
+            ai_response="bye [SESSION_END]",
+        )
+        self.client = APIClient()
+        patcher = patch("core.firebase_auth.auth.verify_id_token")
+        patcher.start().return_value = {"uid": "race-uid", "email": "race@example.com"}
+        self.addCleanup(patcher.stop)
+
+        self.groq_started = threading.Event()
+        self.release_groq = threading.Event()
+        self.groq_calls = 0
+        self.on_groq = None
+        for target, kwargs in (
+            ("therapist.ai_model._call_groq", {"side_effect": self._slow_groq}),
+            ("therapist.ai_model.check_and_reserve_budget_with_retry", {"return_value": True}),
+        ):
+            p = patch(target, **kwargs)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def _slow_groq(self, payload):
+        self.groq_calls += 1
+        if self.on_groq:
+            self.on_groq()
+        self.groq_started.set()
+        self.release_groq.wait(10)
+        return self.NEW
+
+    def _start_thread(self):
+        from .ai_model import _update_user_memory
+
+        thread = threading.Thread(
+            target=_update_user_memory,
+            args=(self.user.id, [], "😊", "last chat", "bye [SESSION_END]", "en", None,
+                  self.entry.id),
+        )
+        thread.start()
+        return thread
+
+    def _delete_all(self):
+        response = self.client.delete(
+            "/api/v1/companion/entries/delete-all/", {"confirm": True},
+            format="json", **_auth_header("race-uid"),
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_delete_all_during_groq_call_is_not_overwritten(self):
+        thread = self._start_thread()
+        self.assertTrue(self.groq_started.wait(10))
+        self._delete_all()
+        self.release_groq.set()
+        thread.join(10)
+        self.assertFalse(thread.is_alive())
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.memory_summary, "")
+        self.assertIsNone(self.user.memory_updated_at)
+
+    def test_delete_all_before_thread_skips_groq(self):
+        self._delete_all()
+        self.release_groq.set()
+        thread = self._start_thread()
+        thread.join(10)
+
+        self.assertEqual(self.groq_calls, 0)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.memory_summary, "")
+        self.assertIsNone(self.user.memory_updated_at)
+
+    def test_normal_path_saves_summary(self):
+        self.release_groq.set()
+        thread = self._start_thread()
+        thread.join(10)
+
+        self.assertEqual(self.groq_calls, 1)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.memory_summary, self.NEW)
+        self.assertGreater(self.user.memory_updated_at, timezone.now() - timedelta(minutes=1))
+
+    def test_stale_memory_updated_at_skips_write(self):
+        from accounts.models import User
+
+        newer = timezone.now()
+
+        def other_update_lands():
+            # Another session's summary is saved while this one waits on Groq.
+            User.objects.filter(pk=self.user.pk).update(
+                memory_summary="Other session note.", memory_updated_at=newer
+            )
+
+        self.on_groq = other_update_lands
+        self.release_groq.set()
+        thread = self._start_thread()
+        thread.join(10)
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.memory_summary, "Other session note.")
+        self.assertEqual(self.user.memory_updated_at, newer)
